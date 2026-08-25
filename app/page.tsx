@@ -447,15 +447,27 @@ export default function WizardPage() {
               </a>
             </span>
           </label>
-          <label className="flex cursor-pointer items-start gap-3 rounded-2xl bg-[#f8f6f2] p-4 text-sm leading-relaxed">
-            <input type="checkbox" checked={duesDeclared}
-              onChange={(e) => setDuesDeclared(e.target.checked)}
-              className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--brand-maroon)]" />
-            <span>
-              הסדרתי את <b>דמי החבר לתשפ&quot;ז</b> ואת כל חובותיי לשנת תשפ&quot;ו
-              (או אסדיר מול הגבאי לפני תחילת השנה)
-            </span>
-          </label>
+          <div className="rounded-2xl bg-[#f8f6f2] p-4">
+            <label className="flex cursor-pointer items-start gap-3 text-sm leading-relaxed">
+              <input type="checkbox" checked={duesDeclared}
+                onChange={(e) => setDuesDeclared(e.target.checked)}
+                className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--brand-maroon)]" />
+              <span>
+                הסדרתי את <b>דמי החבר לתשפ&quot;ז</b> ואת כל חובותיי לשנת תשפ&quot;ו
+                (או אסדיר מול הגבאי לפני תחילת השנה)
+              </span>
+            </label>
+            {map?.paymentUrl && (
+              <a
+                href={map.paymentUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-3 flex min-h-11 items-center justify-center gap-2 rounded-xl border-2 border-brand-maroon/30 bg-white font-bold text-brand-maroon"
+              >
+                💳 לתשלום דמי חבר וסגירת חוב — לחץ כאן
+              </a>
+            )}
+          </div>
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)}
             placeholder="הארות / הערות יתקבלו בברכה"
             className="field resize-none py-3" rows={2} />

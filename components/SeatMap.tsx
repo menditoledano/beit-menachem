@@ -13,7 +13,7 @@
  * Never do arithmetic on scrollLeft here; engines disagree on its sign in RTL.
  */
 
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CompiledLayout, SeatMapPayload } from "@/lib/domain";
 
 export interface SeatSelection {
@@ -86,8 +86,82 @@ export function SeatMap({
     }
   }, [focusSeat, layout]);
 
+  /* ---------- zoom ----------
+   * CSS `zoom` (not transform) so the scroll area resizes with the content —
+   * one finger pans natively, two fingers pinch, buttons serve desktop.
+   */
+  const [zoom, setZoom] = useState(1);
+  const zoomRef = useRef(1);
+  const clampZoom = (z: number) => Math.min(1.4, Math.max(0.3, z));
+  const applyZoom = useCallback((z: number) => {
+    const c = clampZoom(z);
+    zoomRef.current = c;
+    setZoom(c);
+  }, []);
+
+  const fitToWidth = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const inner = el.firstElementChild as HTMLElement | null;
+    if (!inner) return;
+    // Natural width = rendered width divided by the current zoom.
+    const natural = inner.scrollWidth / zoomRef.current || 1;
+    applyZoom((el.clientWidth - 8) / natural);
+  }, [applyZoom]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const pinch = { dist: 0, zoom: 1 };
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        pinch.dist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY,
+        );
+        pinch.zoom = zoomRef.current;
+      }
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length !== 2 || !pinch.dist) return;
+      // Two fingers are ours; one finger stays native pan.
+      e.preventDefault();
+      const d = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY,
+      );
+      applyZoom(pinch.zoom * (d / pinch.dist));
+    };
+    const onWheel = (e: WheelEvent) => {
+      // Trackpad pinch arrives as ctrl+wheel.
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      applyZoom(zoomRef.current * (e.deltaY < 0 ? 1.08 : 0.92));
+    };
+
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("wheel", onWheel);
+    };
+  }, [applyZoom]);
+
   return (
-    <div className="scroll-fade">
+    <div className="relative">
+      {/* zoom controls: pinch works everywhere, these serve mouse + clarity */}
+      <div className="absolute left-2 top-2 z-10 flex flex-col gap-1">
+        <button onClick={() => applyZoom(zoom * 1.2)} aria-label="הגדל"
+          className="h-9 w-9 rounded-full bg-white/90 text-lg font-bold shadow backdrop-blur">＋</button>
+        <button onClick={() => applyZoom(zoom / 1.2)} aria-label="הקטן"
+          className="h-9 w-9 rounded-full bg-white/90 text-lg font-bold shadow backdrop-blur">－</button>
+        <button onClick={fitToWidth} aria-label="התאם למסך"
+          className="h-9 w-9 rounded-full bg-white/90 text-[10px] font-bold shadow backdrop-blur">⤢</button>
+      </div>
+      <div className="scroll-fade">
       <div
         ref={scrollRef}
         className="max-h-[68vh] overflow-auto rounded-xl"
@@ -95,7 +169,7 @@ export function SeatMap({
       >
         <div
           className="grid w-max gap-[3px] p-1"
-          style={{ gridTemplateColumns: tracks, gridAutoRows: `${SEAT_PX}px` }}
+          style={{ gridTemplateColumns: tracks, gridAutoRows: `${SEAT_PX}px`, zoom }}
         >
         {layout.cells.map((cell) => {
           if (cell.kind === "element") {
@@ -171,6 +245,7 @@ export function SeatMap({
           );
         })}
         </div>
+      </div>
       </div>
     </div>
   );
