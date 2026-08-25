@@ -78,6 +78,16 @@ function doPost(e) {
         return json_({ ok: true, result: seedChazakaSeats(body) });
       case 'releaseReservedSeats':
         return json_({ ok: true, result: releaseReservedSeats() });
+      case 'clearRegistrations': {
+        var regSh = sheet_(TAB.REGISTRATIONS);
+        var regLast = regSh.getLastRow();
+        if (regLast > 1) regSh.getRange(2, 1, regLast - 1, REGISTRATION_HEADERS.length).clearContent();
+        logAction_('CLEAR_REGISTRATIONS', '', '', '', '', 'ok', 'rows=' + (regLast - 1), '');
+        return json_({ ok: true, result: 'cleared=' + Math.max(0, regLast - 1) });
+      }
+      case 'runExpiryNow':
+        expirePendingSeats();
+        return json_({ ok: true, result: 'expiry sweep ran' });
       case 'listSheets':
         return json_({
           ok: true,

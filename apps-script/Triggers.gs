@@ -24,7 +24,11 @@ function expirePendingSeats() {
   if (!lock.tryLock(20000)) return;
   try {
     var cfg = getConfig_();
-    var ttlMs = Number(cfg.PENDING_TTL_MIN || 10) * 60 * 1000;
+    // NOT `|| 10`: zero is a legitimate TTL (expire immediately) and must not
+    // silently fall back to the default.
+    var ttlMin = Number(cfg.PENDING_TTL_MIN);
+    if (isNaN(ttlMin)) ttlMin = 10;
+    var ttlMs = ttlMin * 60 * 1000;
     var sh = sheet_(TAB.SEATS);
     var lastRow = sh.getLastRow();
     if (lastRow < 2) return;
