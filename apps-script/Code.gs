@@ -54,6 +54,18 @@ function doPost(e) {
         return json_({ ok: true, result: publishLayout(body) });
       case 'getLayout':
         return json_({ ok: true, compiled: JSON.parse(getCompiledLayout() || 'null') });
+      case 'seatmap':
+        return json_({ ok: true, map: seatmap() });
+      case 'lookup':
+        return json_({ ok: true, result: lookup(body) });
+      case 'claim':
+        return json_(claim(body));
+      case 'installTriggers':
+        return json_({ ok: true, result: installTriggers() });
+      case 'setConfig':
+        return json_({ ok: true, result: setConfigValue_(body.key, body.value) });
+      case 'gabbai':
+        return json_(gabbaiAction(body));
       case 'debugSourceTabs':
         return json_({
           ok: true,
