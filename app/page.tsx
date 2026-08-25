@@ -424,7 +424,10 @@ export default function WizardPage() {
 
       {/* ---------- step 3 ---------- */}
       {step === 3 && (
-        <section className="step-in flex flex-col gap-3">
+        <section
+          className="step-in flex flex-col gap-3 self-center"
+          style={{ width: "min(100vw - 1.5rem, 1100px)" }}
+        >
           {reservedSeats.length > 0 && (
             <div className="pill pill-hold" aria-live="polite">
               {selected.some((n) => reservedSeats.includes(n))
@@ -442,6 +445,7 @@ export default function WizardPage() {
                 selected={selected}
                 myPhone={normalizePhone(phone)}
                 myReservedSeats={reservedSeats}
+                focusSeat={reservedSeats[0] ?? selected[0]}
                 onToggleSeat={toggleSeat}
               />
             ) : (
@@ -450,23 +454,26 @@ export default function WizardPage() {
             <div className="pt-2"><Legend /></div>
           </div>
 
-          <div className="safe-bottom sticky bottom-0 z-10 -mx-4 border-t border-black/5 bg-white/80 px-4 pt-3 backdrop-blur-xl">
+          <div className="safe-bottom sticky bottom-0 z-10 border-t border-black/5 bg-white/80 px-4 pt-3 backdrop-blur-xl">
             <div className="mx-auto flex max-w-lg flex-col gap-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="tnum opacity-70">
-                  {selected.length
-                    ? `נבחרו: ${[...selected].sort((a, b) => a - b).join(", ")}`
-                    : "לחץ על מקום פנוי במפה"}
-                </span>
-                <b className="tnum text-lg">{price} ₪</b>
-              </div>
-              <button
-                onClick={submitClaim}
-                disabled={!selected.length || claimBusy}
-                className="btn-primary"
-              >
-                {claimBusy ? "רושם…" : `אישור סופי — ${price} ₪`}
-              </button>
+              {selected.length === 0 ? (
+                /* Nothing picked yet: a hint line, not a dead button. */
+                <p className="pb-1 text-center text-sm opacity-60">
+                  לחץ על מקום פנוי במפה כדי לבחור
+                </p>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="tnum opacity-70">
+                      נבחרו: {[...selected].sort((a, b) => a - b).join(", ")}
+                    </span>
+                    <b className="tnum text-lg">{price} ₪</b>
+                  </div>
+                  <button onClick={submitClaim} disabled={claimBusy} className="btn-primary">
+                    {claimBusy ? "רושם…" : `אישור סופי — ${price} ₪`}
+                  </button>
+                </>
+              )}
               {back(2)}
             </div>
           </div>

@@ -13,7 +13,7 @@
  * Never do arithmetic on scrollLeft here; engines disagree on its sign in RTL.
  */
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { CompiledLayout, SeatMapPayload } from "@/lib/domain";
 
 export interface SeatSelection {
@@ -23,8 +23,8 @@ export interface SeatSelection {
 }
 
 /** Seat cells grow to this size so a surname fits; aisles stay narrow. */
-const SEAT_PX = 58;
-const AISLE_PX = 16;
+const SEAT_PX = 52;
+const AISLE_PX = 14;
 
 export function SeatMap({
   layout,
@@ -32,6 +32,7 @@ export function SeatMap({
   selected,
   myPhone,
   myReservedSeats,
+  focusSeat,
   onToggleSeat,
 }: {
   layout: CompiledLayout;
@@ -40,26 +41,60 @@ export function SeatMap({
   /** Normalised phone of the identified user, for highlighting their hold. */
   myPhone?: string;
   myReservedSeats?: number[];
+  /** Seat to bring into view on first render — the user's own hold, usually. */
+  focusSeat?: number;
   onToggleSeat: (sel: SeatSelection) => void;
 }) {
-  const tracks = useMemo(
-    () =>
-      layout.tracks
-        .map((w) => `${w <= 20 ? AISLE_PX : SEAT_PX}px`)
-        .join(" "),
-    [layout.tracks],
-  );
+  // Column widths are computed PER COLUMN from actual seat occupancy, not
+  // from the compiled tracks: with the middle block offset by one column,
+  // trusting the compiled track makes every offset column full-width even in
+  // rows where it is empty, opening canyon-wide gaps between the top-block
+  // pairs. A column is seat-width only if a seat actually lives in it.
+  const tracks = useMemo(() => {
+    const seatCols = new Set<number>();
+    const elementCols = new Set<number>();
+    for (const cell of layout.cells) {
+      if (cell.kind === "seat") seatCols.add(cell.col);
+      else for (let c = 0; c < cell.colSpan; c++) elementCols.add(cell.col + c);
+    }
+    const widths: string[] = [];
+    for (let c = 1; c <= layout.cols; c++) {
+      widths.push(
+        seatCols.has(c) ? `${SEAT_PX}px`
+        : elementCols.has(c) ? `${Math.round(SEAT_PX * 0.8)}px`
+        : `${AISLE_PX}px`,
+      );
+    }
+    return widths.join(" ");
+  }, [layout]);
 
   const mine = useMemo(() => new Set(myReservedSeats ?? []), [myReservedSeats]);
+
+  // Open the map centred on what matters to THIS user: their held seat, or
+  // the ark end where the map begins. RTL scroll offsets are treacherous —
+  // scrollIntoView is the only portable way to do this.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const didFocusRef = useRef(false);
+  useEffect(() => {
+    if (didFocusRef.current || !scrollRef.current) return;
+    const target = scrollRef.current.querySelector(
+      focusSeat ? `[data-seat="${focusSeat}"]` : '[data-seat="1"]',
+    );
+    if (target) {
+      didFocusRef.current = true;
+      target.scrollIntoView({ inline: "center", block: "nearest" });
+    }
+  }, [focusSeat, layout]);
 
   return (
     <div className="scroll-fade">
       <div
-        className="overflow-auto rounded-xl"
+        ref={scrollRef}
+        className="max-h-[68vh] overflow-auto rounded-xl"
         style={{ overscrollBehavior: "contain" }}
       >
         <div
-          className="grid w-max gap-1 p-1"
+          className="grid w-max gap-[3px] p-1"
           style={{ gridTemplateColumns: tracks, gridAutoRows: `${SEAT_PX}px` }}
         >
         {layout.cells.map((cell) => {
@@ -119,7 +154,8 @@ export function SeatMap({
                   facing: cell.facing,
                 })
               }
-              className={`tnum flex flex-col items-center justify-center gap-0.5 rounded-md text-white transition-transform active:scale-95 disabled:cursor-not-allowed ${cls}`}
+              data-seat={cell.seatNo}
+              className={`tnum flex flex-col items-center justify-center gap-0.5 rounded-lg text-white transition-transform active:scale-95 disabled:cursor-not-allowed ${cls}`}
               style={{ gridRow: cell.row, gridColumn: cell.col, touchAction: "manipulation" }}
               /* title = desktop tooltip; the same text is the aria-label for readers */
               title={label}
