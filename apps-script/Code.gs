@@ -44,6 +44,20 @@ function doPost(e) {
     switch (body.action) {
       case 'ping':
         return json_({ ok: true, action: 'ping', now: new Date().toISOString() });
+      case 'importMembers':
+        return json_({ ok: true, result: importMembers() });
+      case 'debugSourceTabs':
+        return json_({
+          ok: true,
+          tabs: SpreadsheetApp.openById(MEMBERS_SOURCE_ID).getSheets().map(function (sh) {
+            return {
+              name: sh.getName(),
+              rows: sh.getLastRow(),
+              cols: sh.getLastColumn(),
+              firstHeader: String(sh.getRange(1, 1).getValue()).slice(0, 40),
+            };
+          }),
+        });
       default:
         return json_({ ok: false, code: 'UNKNOWN_ACTION', action: body.action });
     }
