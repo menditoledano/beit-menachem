@@ -193,10 +193,16 @@ function seedChazakaSeats(body) {
         var idx = byPosition[pos.block + '|' + pos.pairIdx + '|' + pos.rowInBlock + '|' + pos.side];
         if (idx === undefined) { unmappable.push(nm + '@' + r + ',' + c); continue; }
         if (rows[idx][COLS.STATUS - 1] !== STATUS.FREE) { skippedTaken++; continue; }
+        // EVERY named cell is reserved. A holder with a resolved phone can
+        // confirm from the wizard; a holder without one still gets his seat
+        // held and his name on the map — nobody can grab it, and the WhatsApp
+        // fallback routes him to the gabbai for manual assignment. A seat must
+        // never look free just because its holder skipped the member form.
         var match = byKey[keyTight_(nm)];
-        if (!match) { skippedNoPhone++; continue; }
+        if (!match) skippedNoPhone++;
         sh.getRange(idx + 2, COLS.STATUS).setValue(STATUS.RESERVED);
-        sh.getRange(idx + 2, COLS.CHAZAKA_NAME, 1, 2).setValues([[nm, match.phone]]);
+        sh.getRange(idx + 2, COLS.CHAZAKA_NAME, 1, 2)
+          .setValues([[nm, match ? match.phone : '']]);
         reserved++;
       }
     }
@@ -204,7 +210,7 @@ function seedChazakaSeats(body) {
     SpreadsheetApp.flush();
     CacheService.getScriptCache().remove('seatmap');
     var summary = 'reserved=' + reserved +
-      ' unapprovedHolder=' + skippedNoPhone + ' alreadyTaken=' + skippedTaken +
+      ' nameOnlyNoPhone=' + skippedNoPhone + ' alreadyTaken=' + skippedTaken +
       (unmappable.length ? ' unmappable=' + unmappable.slice(0, 8).join(';') : '');
     logAction_('SEED_CHAZAKA', '', '', '', '', 'ok', summary, '');
     return summary;
