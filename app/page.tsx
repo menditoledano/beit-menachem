@@ -312,8 +312,16 @@ export default function WizardPage() {
           <h2 className="font-bold">{name ? `שלום ${name}!` : "פרטים אישיים"}</h2>
           {reservedSeats.length > 0 && (
             <div className="rounded border border-sky-400 bg-sky-50 p-2 text-sm">
-              🪑 המקום שלך משנה שעברה — <b className="tnum">{reservedSeats.join(", ")}</b> — שמור לך
+              🪑 {reservedSeats.length === 1 ? "המקום שלך" : "המקומות שלך"} משנה שעברה —{" "}
+              <b className="tnum">{reservedSeats.join(", ")}</b> —{" "}
+              {reservedSeats.length === 1 ? "שמור" : "שמורים"} לך
               {map?.reservedUntil ? ` עד ${map.reservedUntil}` : " לזמן מוגבל"}.
+              <div className="mt-1">
+                מחיר אישור: <b className="tnum">{totalPrice(reservedSeats.length)} ₪</b>
+              </div>
+              <div className="mt-1 text-xs opacity-70">
+                אפשר לאשר את המקום שלך, או לעבור למקום פנוי (ירוק) — מעבר מוותר על המקום הישן.
+              </div>
             </div>
           )}
           <input value={name} onChange={(e) => setName(e.target.value)}
@@ -367,7 +375,15 @@ export default function WizardPage() {
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)}
             placeholder="הארות / הערות יתקבלו בברכה" className="rounded border p-2 text-sm" rows={2} />
           <button
-            onClick={() => setStep(3)}
+            onClick={() => {
+              // The holder's own seats arrive preselected: confirming last
+              // year's spot is one tap, moving is an explicit deselect+pick.
+              if (reservedSeats.length && !selected.length) {
+                setSelected(reservedSeats);
+                if (!requestIdRef.current) requestIdRef.current = `c-${crypto.randomUUID()}`;
+              }
+              setStep(3);
+            }}
             disabled={!takanonApproved || !duesDeclared}
             className="rounded-lg bg-ark p-3 font-bold text-white disabled:opacity-40"
           >
@@ -382,7 +398,9 @@ export default function WizardPage() {
         <section className="flex flex-col gap-2">
           {reservedSeats.length > 0 && (
             <div className="rounded border border-sky-400 bg-sky-50 p-2 text-sm">
-              המקום שלך מהבהב במפה — לחץ עליו לאישור, או בחר מקום אחר.
+              {selected.some((n) => reservedSeats.includes(n))
+                ? "המקום שלך מסומן — אישור סופי למטה. אפשר גם לעבור למקום פנוי (ירוק)."
+                : "עברת למקום אחר — המקום הישן שלך ישוחרר עם האישור."}
               {map?.reservedUntil && <> שמור עד <b>{map.reservedUntil}</b>.</>}
             </div>
           )}

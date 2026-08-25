@@ -159,6 +159,23 @@ function claim(body) {
       }
     }
 
+    // Exercising the chazaka right consumes it: any reservation of this phone
+    // NOT claimed right now is released. Choosing a different seat is a move,
+    // not an accumulation — the old hold frees up for Round B.
+    var releasedHolds = [];
+    rows.forEach(function (r, i) {
+      if (r[COLS.STATUS - 1] !== STATUS.RESERVED) return;
+      if (normPhone_(r[COLS.CHAZAKA_PHONE - 1]) !== phone) return;
+      if (seatNos.indexOf(Number(r[COLS.SEAT_NO - 1])) !== -1) return;
+      sh.getRange(i + 2, COLS.STATUS).setValue(STATUS.FREE);
+      sh.getRange(i + 2, COLS.CHAZAKA_NAME, 1, 2).setValues([['', '']]);
+      releasedHolds.push(Number(r[COLS.SEAT_NO - 1]));
+    });
+    if (releasedHolds.length) {
+      logAction_('CHAZAKA_MOVED', releasedHolds.join(','), name, phone, cfg.PHASE,
+        'ok', 'released after claiming ' + seatNos.join(','), ip);
+    }
+
     var total = totalPriceFor_(held + seatNos.length, cfg) - totalPriceFor_(held, cfg);
     logAction_('CLAIM', seatNos.join(','), name, phone, cfg.PHASE,
       newStatus === STATUS.PENDING ? 'pending' : 'ok',
