@@ -8,16 +8,17 @@
  * Apps Script execution quota.
  */
 
-export type SeatStatus = "פנוי" | "תפוס" | "ממתין" | "חסום";
+export type SeatStatus = "פנוי" | "תפוס" | "ממתין" | "חסום" | "שמור";
 
 export const SEAT_STATUS: Record<
-  "FREE" | "TAKEN" | "PENDING" | "BLOCKED",
+  "FREE" | "TAKEN" | "PENDING" | "BLOCKED" | "RESERVED",
   SeatStatus
 > = {
   FREE: "פנוי",
   TAKEN: "תפוס",
   PENDING: "ממתין",
   BLOCKED: "חסום",
+  RESERVED: "שמור",
 };
 
 /** Compact per-seat status codes used in the polled map payload. */
@@ -26,6 +27,7 @@ export const STATUS_CODE: Record<SeatStatus, string> = {
   תפוס: "1",
   ממתין: "2",
   חסום: "3",
+  שמור: "4",
 };
 
 export type Phase = "A" | "B";
@@ -80,15 +82,27 @@ export interface SeatMapPayload {
   holders: Record<string, string>;
   /** Shul contact for the Round A WhatsApp fallback, wa.me format. */
   gabbaiPhone: string;
+  /** Reservation-hold deadline text from config; empty when no deadline set. */
+  reservedUntil: string;
   serverTime: string;
 }
 
 export type LookupResult =
-  | { kind: "CHAZAKA"; memberId: string; name: string }
-  | { kind: "MEMBER_NO_CHAZAKA"; memberId: string; name: string }
+  | { kind: "CHAZAKA"; memberId: string; name: string; reservedSeats?: number[] }
+  | { kind: "MEMBER_NO_CHAZAKA"; memberId: string; name: string; reservedSeats?: number[] }
   /** One phone shared by several member rows — families do this constantly. */
   | { kind: "MULTI"; candidates: Array<{ memberId: string; name: string }> }
   | { kind: "UNKNOWN" };
+
+export interface RegistrationData {
+  /** Two aliyot dates per the takanon: every paying member picks them now. */
+  aliyah1: string;
+  aliyah2: string;
+  takanonApproved: boolean;
+  /** Declaration that dues + any תשפ"ו debts are settled. */
+  duesDeclared: boolean;
+  notes: string;
+}
 
 export interface ClaimRequest {
   action: "claim";
@@ -99,6 +113,7 @@ export interface ClaimRequest {
   name: string;
   phone: string;
   email?: string;
+  registration?: RegistrationData;
 }
 
 export type ClaimFailureCode =
@@ -106,6 +121,7 @@ export type ClaimFailureCode =
   | "BAD_PHONE"
   | "BAD_INPUT"
   | "TAKEN"
+  | "RESERVED_FOR_OTHER"
   | "BUSY"
   | "CAP_REACHED"
   | "PAIR_REQUIRED"

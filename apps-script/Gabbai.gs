@@ -39,7 +39,7 @@ function gabbaiAction(body) {
   try {
     var sh = sheet_(TAB.SEATS);
     var lastRow = sh.getLastRow();
-    var rows = sh.getRange(2, 1, lastRow - 1, COLS.NOTE).getValues();
+    var rows = sh.getRange(2, 1, lastRow - 1, SEAT_WIDTH).getValues();
     var byNo = {};
     rows.forEach(function (r, i) { byNo[Number(r[COLS.SEAT_NO - 1])] = i; });
 

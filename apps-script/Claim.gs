@@ -14,8 +14,9 @@
 var COLS = {
   SEAT_NO: 1, TABLE_ID: 2, SIDE: 3, FACING: 4, PAIR: 5, ZONE: 6,
   STATUS: 7, NAME: 8, PHONE: 9, EMAIL: 10, CLAIMED_AT: 11, PAID: 12,
-  REQUEST_ID: 13, NOTE: 14,
+  REQUEST_ID: 13, NOTE: 14, CHAZAKA_NAME: 15, CHAZAKA_PHONE: 16,
 };
+var SEAT_WIDTH = 16; // total columns read/written per seat row
 
 function claim(body) {
   var t0 = Date.now();
@@ -65,14 +66,24 @@ function claim(body) {
     if (lastRow < 2) return fail_(cache, reqId, 'SALE_CLOSED');
     // One read of the whole tab (~200 rows) gives the re-read AND the cap
     // recount AND the pairing lookups. Never count the cap from cache.
-    var rows = sh.getRange(2, 1, lastRow - 1, COLS.NOTE).getValues();
+    var rows = sh.getRange(2, 1, lastRow - 1, SEAT_WIDTH).getValues();
     var bySeat = {};
     rows.forEach(function (r, i) { bySeat[Number(r[COLS.SEAT_NO - 1])] = { row: r, idx: i }; });
 
     for (var i = 0; i < seatNos.length; i++) {
       var entry = bySeat[seatNos[i]];
       if (!entry) return fail_(cache, reqId, 'BAD_SEAT');
-      if (entry.row[COLS.STATUS - 1] !== STATUS.FREE) {
+      var st = entry.row[COLS.STATUS - 1];
+      // A reserved seat is claimable, but only by the phone on the
+      // reservation — anyone else sees it as taken until the hold lapses.
+      if (st === STATUS.RESERVED) {
+        if (normPhone_(entry.row[COLS.CHAZAKA_PHONE - 1]) !== phone) {
+          return fail_(cache, reqId, 'RESERVED_FOR_OTHER', {
+            seatNo: seatNos[i],
+            holder: String(entry.row[COLS.CHAZAKA_NAME - 1] || ''),
+          });
+        }
+      } else if (st !== STATUS.FREE) {
         return fail_(cache, reqId, 'TAKEN', {
           seatNo: seatNos[i],
           holder: String(entry.row[COLS.NAME - 1] || '').split(' ')[0],
@@ -124,6 +135,24 @@ function claim(body) {
         newStatus, name, phone, email, now, false, reqId,
       ]]);
     });
+
+    // Wizard registration data rides along with the claim; stored regardless
+    // of which seats were picked so the aliyot list is complete.
+    if (body.registration) {
+      try {
+        sheet_(TAB.REGISTRATIONS).appendRow([
+          now, name, phone, email, seatNos.join(','),
+          totalPriceFor_(held + seatNos.length, cfg) - totalPriceFor_(held, cfg),
+          String(body.registration.aliyah1 || '').slice(0, 100),
+          String(body.registration.aliyah2 || '').slice(0, 100),
+          body.registration.takanonApproved === true,
+          body.registration.duesDeclared === true,
+          String(body.registration.notes || '').slice(0, 300),
+        ]);
+      } catch (e) {
+        logAction_('REGISTRATION', seatNos.join(','), name, phone, cfg.PHASE, 'fail', String(e), '');
+      }
+    }
 
     var total = totalPriceFor_(held + seatNos.length, cfg) - totalPriceFor_(held, cfg);
     logAction_('CLAIM', seatNos.join(','), name, phone, cfg.PHASE,

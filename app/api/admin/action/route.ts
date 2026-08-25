@@ -10,8 +10,11 @@ const ALLOWED = new Set([
   "seatmap",
   "runChazakaMatching",
   "approveAutoChazaka",
+  "seedChazakaSeats",
+  "releaseReservedSeats",
   "importMembers",
   "installTriggers",
+  "setup",
 ]);
 
 export async function POST(req: Request) {

@@ -102,6 +102,104 @@ function runChazakaMatching(body) {
 }
 
 /**
+ * Seeds last year's holders onto the new map as reserved seats.
+ *
+ * The new layout was scaled from the old hall, so old seat numbers land in
+ * roughly the same physical spot. Each old holder's seat numbers are marked
+ * שמור with the holder's name and phone (from the approved _Chazaka rows) —
+ * the wizard then shows each member their own seat, held for them until the
+ * Round A deadline. Only APPROVED rows with a phone produce reservations.
+ */
+function seedChazakaSeats(body) {
+  var tabName = String((body && body.tab) || OLD_MAP_TAB);
+  var src = ss_().getSheetByName(tabName);
+  if (!src) throw new Error('לא נמצא טאב "' + tabName + '"');
+
+  // name-key -> {name, phone} from approved chazaka rows
+  var chz = sheet_(TAB.CHAZAKA);
+  var byKey = {};
+  if (chz.getLastRow() > 1) {
+    chz.getRange(2, 1, chz.getLastRow() - 1, CHAZAKA_HEADERS.length).getValues()
+      .forEach(function (r) {
+        var phone = normPhone_(r[2]);
+        var approved = String(r[7] || '') !== '';
+        var waived = r[8] === true || r[8] === 'TRUE';
+        if (phone && approved && !waived) {
+          byKey[keyTight_(String(r[3]))] = { name: String(r[3]), phone: phone };
+        }
+      });
+  }
+
+  // old seat number -> holder display name
+  var oldSeatHolder = {};
+  src.getDataRange().getValues().forEach(function (r) {
+    var no = Number(r[0]);
+    var nm = String(r[1] || '').trim();
+    if (no >= 1 && no <= 300 && nm && isNaN(Number(nm))) oldSeatHolder[no] = nm;
+  });
+
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) throw new Error('BUSY');
+  try {
+    var sh = sheet_(TAB.SEATS);
+    var lastRow = sh.getLastRow();
+    if (lastRow < 2) throw new Error('אין מקומות — פרסם פריסה קודם');
+    var rows = sh.getRange(2, 1, lastRow - 1, SEAT_WIDTH).getValues();
+
+    var reserved = 0, skippedNoPhone = 0, skippedTaken = 0;
+    rows.forEach(function (r, i) {
+      var no = Number(r[COLS.SEAT_NO - 1]);
+      var holderName = oldSeatHolder[no];
+      if (!holderName) return;
+      if (r[COLS.STATUS - 1] !== STATUS.FREE) { skippedTaken++; return; }
+      var match = byKey[keyTight_(holderName)];
+      if (!match) { skippedNoPhone++; return; }
+      sh.getRange(i + 2, COLS.STATUS).setValue(STATUS.RESERVED);
+      sh.getRange(i + 2, COLS.CHAZAKA_NAME, 1, 2).setValues([[match.name, match.phone]]);
+      reserved++;
+    });
+
+    SpreadsheetApp.flush();
+    CacheService.getScriptCache().remove('seatmap');
+    var summary = 'reserved=' + reserved +
+      ' unapprovedHolder=' + skippedNoPhone + ' alreadyTaken=' + skippedTaken;
+    logAction_('SEED_CHAZAKA', '', '', '', '', 'ok', summary, '');
+    return summary;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Converts every unexercised reservation back to free. The explicit gabbai
+ * action that opens Round B — deliberately not a timer, so a hold never
+ * evaporates overnight without a human deciding it.
+ */
+function releaseReservedSeats() {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) throw new Error('BUSY');
+  try {
+    var sh = sheet_(TAB.SEATS);
+    var lastRow = sh.getLastRow();
+    if (lastRow < 2) return 'released=0';
+    var rows = sh.getRange(2, 1, lastRow - 1, SEAT_WIDTH).getValues();
+    var released = 0;
+    rows.forEach(function (r, i) {
+      if (r[COLS.STATUS - 1] !== STATUS.RESERVED) return;
+      sh.getRange(i + 2, COLS.STATUS).setValue(STATUS.FREE);
+      sh.getRange(i + 2, COLS.CHAZAKA_NAME, 1, 2).setValues([['', '']]);
+      released++;
+    });
+    SpreadsheetApp.flush();
+    CacheService.getScriptCache().remove('seatmap');
+    logAction_('RELEASE_RESERVED', '', '', '', '', 'ok', 'released=' + released, '');
+    return 'released=' + released;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
  * Bulk-approves AUTO rows (they still went through the human's eyes as a
  * list), stamps the approval time. REVIEW/AMBIGUOUS/NO_MATCH stay dead until
  * edited by hand in the sheet or via the admin console.

@@ -29,7 +29,7 @@ function expirePendingSeats() {
     var lastRow = sh.getLastRow();
     if (lastRow < 2) return;
 
-    var rows = sh.getRange(2, 1, lastRow - 1, COLS.NOTE).getValues();
+    var rows = sh.getRange(2, 1, lastRow - 1, SEAT_WIDTH).getValues();
     var now = Date.now();
     var expired = [];
 

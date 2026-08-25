@@ -16,6 +16,7 @@ var TAB = {
   MEMBERS: '_Members',
   LOG: '_Log',
   CONFIG: '_Config',
+  REGISTRATIONS: '_Registrations',
 };
 
 /** Seat status values. Stored in Hebrew so the sheet reads correctly to a human. */
@@ -24,6 +25,9 @@ var STATUS = {
   TAKEN: 'תפוס',
   PENDING: 'ממתין',
   BLOCKED: 'חסום',
+  // Reserved for last year's holder until the Round A deadline. Claimable
+  // only by the phone recorded on the reservation.
+  RESERVED: 'שמור',
 };
 
 /** Sale mode. READONLY is the one-cell emergency brake. */

@@ -13,6 +13,12 @@ var SEAT_HEADERS = [
   'seatNo', 'tableId', 'side', 'facingArk', 'pairSeatNo', 'zone',
   'status', 'holderName', 'holderPhone', 'holderEmail',
   'claimedAt', 'paid', 'requestId', 'gabbaiNote',
+  'chazakaName', 'chazakaPhone',
+];
+
+var REGISTRATION_HEADERS = [
+  'timestamp', 'name', 'phone', 'email', 'seatNos', 'totalPrice',
+  'aliyah1', 'aliyah2', 'takanonApproved', 'duesDeclared', 'notes',
 ];
 
 var CHAZAKA_HEADERS = [
@@ -42,6 +48,8 @@ function setup() {
   var members = ensureTab_(ss, TAB.MEMBERS, MEMBER_HEADERS);
   ensureTab_(ss, TAB.LOG, LOG_HEADERS);
   ensureTab_(ss, TAB.LAYOUT, LAYOUT_HEADERS);
+  var registrations = ensureTab_(ss, TAB.REGISTRATIONS, REGISTRATION_HEADERS);
+  forcePlainText_(registrations, REGISTRATION_HEADERS, ['phone']);
   ensureTab_(ss, TAB.LAYOUT_COMPILED, null);
   ensureConfigTab_(ss);
 

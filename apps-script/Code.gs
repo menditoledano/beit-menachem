@@ -62,6 +62,8 @@ function doPost(e) {
         return json_(claim(body));
       case 'installTriggers':
         return json_({ ok: true, result: installTriggers() });
+      case 'setup':
+        return json_({ ok: true, result: setup() });
       case 'setConfig':
         return json_({ ok: true, result: setConfigValue_(body.key, body.value) });
       case 'gabbai':
@@ -70,6 +72,10 @@ function doPost(e) {
         return json_({ ok: true, result: runChazakaMatching(body) });
       case 'approveAutoChazaka':
         return json_({ ok: true, result: approveAutoChazaka() });
+      case 'seedChazakaSeats':
+        return json_({ ok: true, result: seedChazakaSeats(body) });
+      case 'releaseReservedSeats':
+        return json_({ ok: true, result: releaseReservedSeats() });
       case 'debugSourceTabs':
         return json_({
           ok: true,
