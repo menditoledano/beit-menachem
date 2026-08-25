@@ -118,6 +118,7 @@ function publishLayout(payload) {
     return [
       s.seatNo, s.tableId, s.side, s.facingArk, s.pairSeatNo, s.zone,
       STATUS.FREE, '', '', '', '', false, '', '',
+      '', '', // chazakaName, chazakaPhone — filled by seedChazakaSeats
     ];
   });
   if (lastRow > 1) seatSh.getRange(2, 1, lastRow - 1, SEAT_HEADERS.length).clearContent();

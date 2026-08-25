@@ -109,10 +109,15 @@ function claim(body) {
     // Directionality: an ark-facing seat is only sellable together with its
     // pair — either in this same request, or when the pair is already taken
     // (by anyone). This is what physically prevents an all-ark-facing hall.
+    // Exemption: a seat RESERVED for this very phone is a historic position
+    // being confirmed, not a new ark-facing row being created.
     for (var j = 0; j < seatNos.length; j++) {
       var seat = bySeat[seatNos[j]].row;
       var facing = seat[COLS.FACING - 1] === true || seat[COLS.FACING - 1] === 'TRUE';
       if (!facing) continue;
+      var reservedForMe = seat[COLS.STATUS - 1] === STATUS.RESERVED &&
+        normPhone_(seat[COLS.CHAZAKA_PHONE - 1]) === phone;
+      if (reservedForMe) continue;
       var pairNo = Number(seat[COLS.PAIR - 1]);
       var pairInRequest = seatNos.indexOf(pairNo) !== -1;
       var pairEntry = bySeat[pairNo];

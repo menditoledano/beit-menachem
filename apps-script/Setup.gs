@@ -57,7 +57,7 @@ function setup() {
   // number 501234567; the leading zero is gone, runtime lookups miss, and Round
   // A silently rejects real members — the worst kind of failure, invisible
   // until an angry phone call.
-  forcePlainText_(seats, SEAT_HEADERS, ['holderPhone']);
+  forcePlainText_(seats, SEAT_HEADERS, ['holderPhone', 'chazakaPhone']);
   forcePlainText_(chazaka, CHAZAKA_HEADERS, ['phone']);
   forcePlainText_(members, MEMBER_HEADERS, ['phone']);
 

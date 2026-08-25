@@ -70,10 +70,13 @@ export function seedFromOldHall(): HallLayout {
 
   // Numbering walks ark-side first (the old map numbered 1-32 nearest the
   // ark), so iterate pairs from the LEFT (high pair index) toward the right.
+  // The bimah keeps its OLD relative position: third pair from the ark, as it
+  // was in the 5-pair hall (old pair index 2 of 0..4 counted from the ark).
+  // Physical continuity for last year's holders trumps geometric centring.
+  const BIMAH_PAIR = PAIRS - 1 - 2;
   for (let p = PAIRS - 1; p >= 0; p--) {
     for (let b = 0; b < BLOCKS.length; b++) {
-      // The bimah replaces the middle block of the centre pair, as in the old hall.
-      const isBimahSlot = b === 1 && p === Math.floor(PAIRS / 2);
+      const isBimahSlot = b === 1 && p === BIMAH_PAIR;
       if (isBimahSlot) continue;
       const id = `t-p${p}-b${b}`;
       tables.push({
@@ -97,7 +100,7 @@ export function seedFromOldHall(): HallLayout {
     { kind: "element", id: "chazan", label: "חזן", row: 8, col: gridCols - 1, rowSpan: 1, colSpan: 1 },
     {
       kind: "element", id: "bimah", label: "בימת ספר תורה",
-      row: 10, col: pairCol(Math.floor(PAIRS / 2)), rowSpan: 4, colSpan: 2,
+      row: 10, col: pairCol(PAIRS - 1 - 2), rowSpan: 4, colSpan: 2,
     },
     { kind: "element", id: "entrance", label: "כניסה", row: 2, col: 1, rowSpan: 2, colSpan: 1 },
     { kind: "element", id: "sink", label: "כיור", row: 6, col: 1, rowSpan: 3, colSpan: 1 },
