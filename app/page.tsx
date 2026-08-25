@@ -465,13 +465,21 @@ export default function WizardPage() {
                 )}
 
                 {intent === "keep" && (
-                  <div className="mt-2 font-semibold text-green-800">
-                    ✓ נשארים במקום. השלם את הפרטים למטה והמשך לאישור.
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <span className="font-semibold text-green-800">
+                      ✓ נשארים במקום. השלם את הפרטים למטה והמשך לאישור.
+                    </span>
+                    <button onClick={() => { setIntent(null); setSelected([]); }} className="btn-ghost shrink-0 text-xs">
+                      שנה בחירה
+                    </button>
                   </div>
                 )}
                 {intent === "switch" && (
-                  <div className="mt-2 text-xs opacity-75">
-                    בחרת לעבור מקום — המקום הישן ישוחרר עם האישור הסופי.
+                  <div className="mt-2 flex items-center justify-between gap-2 text-xs opacity-75">
+                    <span>בחרת לעבור מקום — המקום הישן ישוחרר עם האישור הסופי.</span>
+                    <button onClick={() => { setIntent(null); setSelected([]); }} className="btn-ghost shrink-0 text-xs opacity-100">
+                      שנה בחירה
+                    </button>
                   </div>
                 )}
               </div>

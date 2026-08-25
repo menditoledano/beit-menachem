@@ -158,8 +158,8 @@ export function SeatMap({
           className="h-9 w-9 rounded-full bg-white/90 text-lg font-bold shadow backdrop-blur">＋</button>
         <button onClick={() => applyZoom(zoom / 1.2)} aria-label="הקטן"
           className="h-9 w-9 rounded-full bg-white/90 text-lg font-bold shadow backdrop-blur">－</button>
-        <button onClick={fitToWidth} aria-label="התאם למסך"
-          className="h-9 w-9 rounded-full bg-white/90 text-[10px] font-bold shadow backdrop-blur">⤢</button>
+        <button onClick={fitToWidth} aria-label="הצג את כל האולם"
+          className="h-9 rounded-full bg-white/90 px-2 text-[11px] font-bold shadow backdrop-blur">הכל</button>
       </div>
       <div className="scroll-fade">
       <div
