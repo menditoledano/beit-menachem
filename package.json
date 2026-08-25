@@ -6,7 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "gas:login": "clasp login",
+    "gas:push": "cd apps-script && clasp push --force",
+    "gas:open": "cd apps-script && clasp open-script",
+    "gas:logs": "cd apps-script && clasp logs --watch"
   },
   "dependencies": {
     "next": "16.3.2",
@@ -14,6 +18,7 @@
     "react-dom": "19.2.8"
   },
   "devDependencies": {
+    "@google/clasp": "^3.4.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
