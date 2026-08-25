@@ -84,6 +84,8 @@ export interface SeatMapPayload {
   gabbaiPhone: string;
   /** Reservation-hold deadline text from config; empty when no deadline set. */
   reservedUntil: string;
+  /** External payment page (mygabay). */
+  paymentUrl: string;
   serverTime: string;
 }
 

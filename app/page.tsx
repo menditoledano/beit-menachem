@@ -17,6 +17,7 @@ import type {
 } from "@/lib/domain";
 import { normalizePhone, totalPrice } from "@/lib/domain";
 import { SeatMap, Legend, type SeatSelection } from "@/components/SeatMap";
+import { Logo } from "@/components/Logo";
 
 const POLL_MS = 4_000;
 type Step = 0 | 1 | 2 | 3 | 4;
@@ -217,9 +218,11 @@ export default function WizardPage() {
   /* ---------- shared chrome ---------- */
   return (
     <main className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-3 p-3">
-      <header className="text-center">
-        <h1 className="text-lg font-bold">בחירת מקומות תשפ&quot;ז</h1>
-        <p className="text-xs opacity-70">בית הכנסת חב&quot;ד &quot;בית מנחם&quot; — גני איילון</p>
+      <header className="flex flex-col items-center gap-1 pt-2">
+        <Logo compact={step > 0} />
+        <h1 className="text-base font-bold text-brand-maroon-dark">
+          בחירת מקומות לשנת תשפ&quot;ז
+        </h1>
       </header>
 
       {/* progress */}
@@ -228,7 +231,7 @@ export default function WizardPage() {
           <li key={t} className="flex items-center gap-1">
             <span
               className={`flex h-6 w-6 items-center justify-center rounded-full font-bold ${
-                i < step ? "bg-seat-free text-white" : i === step ? "bg-ark text-white" : "bg-gray-200"
+                i < step ? "bg-seat-free text-white" : i === step ? "bg-brand-maroon text-white" : "bg-gray-200"
               }`}
             >
               {i < step ? "✓" : i + 1}
@@ -274,7 +277,7 @@ export default function WizardPage() {
           <button
             onClick={doLookup}
             disabled={lookupBusy}
-            className="rounded-lg bg-ark p-3 font-bold text-white disabled:opacity-50"
+            className="rounded-xl bg-brand-maroon p-3 font-bold shadow hover:bg-brand-maroon-dark text-white disabled:opacity-50"
           >
             {lookupBusy ? "בודק…" : "המשך"}
           </button>
@@ -341,7 +344,7 @@ export default function WizardPage() {
           <button
             onClick={() => setStep(2)}
             disabled={name.trim().length < 2}
-            className="rounded-lg bg-ark p-3 font-bold text-white disabled:opacity-40"
+            className="rounded-xl bg-brand-maroon p-3 font-bold shadow hover:bg-brand-maroon-dark text-white disabled:opacity-40"
           >
             המשך
           </button>
@@ -385,7 +388,7 @@ export default function WizardPage() {
               setStep(3);
             }}
             disabled={!takanonApproved || !duesDeclared}
-            className="rounded-lg bg-ark p-3 font-bold text-white disabled:opacity-40"
+            className="rounded-xl bg-brand-maroon p-3 font-bold shadow hover:bg-brand-maroon-dark text-white disabled:opacity-40"
           >
             המשך לבחירת מקום
           </button>
@@ -430,7 +433,7 @@ export default function WizardPage() {
             <button
               onClick={submitClaim}
               disabled={!selected.length || claimBusy}
-              className="w-full rounded-lg bg-ark p-3 font-bold text-white disabled:opacity-40"
+              className="w-full rounded-xl bg-brand-maroon p-3 font-bold shadow hover:bg-brand-maroon-dark text-white disabled:opacity-40"
             >
               {claimBusy ? "רושם…" : `אישור סופי — ${price} ₪`}
             </button>
@@ -441,15 +444,29 @@ export default function WizardPage() {
 
       {/* ---------- step 4 ---------- */}
       {step === 4 && (
-        <section className="flex flex-col items-center gap-3 rounded-lg border bg-white p-6 text-center">
+        <section className="flex flex-col items-center gap-3 rounded-xl border bg-white p-6 text-center shadow-sm">
           <span className="text-4xl">🎉</span>
-          <h2 className="text-lg font-bold">המקום שלך נרשם!</h2>
+          <h2 className="text-lg font-bold text-brand-maroon">המקום שלך נרשם!</h2>
           <p className="tnum">
-            מקומות <b>{claimedSeats.join(", ")}</b> על שם <b>{name}</b>
+            {claimedSeats.length === 1 ? "מקום" : "מקומות"}{" "}
+            <b>{claimedSeats.join(", ")}</b> על שם <b>{name}</b>
           </p>
           <p className="text-sm opacity-70">
-            סכום לתשלום מול הגבאי: <b className="tnum">{totalPrice(claimedSeats.length)} ₪</b>
+            סכום לתשלום: <b className="tnum">{totalPrice(claimedSeats.length)} ₪</b>
             {email ? " · אישור נשלח למייל" : ""}
+          </p>
+          {map?.paymentUrl && (
+            <a
+              href={map.paymentUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full max-w-xs rounded-xl bg-brand-maroon p-3 text-lg font-bold text-white shadow hover:bg-brand-maroon-dark"
+            >
+              💳 לתשלום מאובטח — {totalPrice(claimedSeats.length)} ₪
+            </a>
+          )}
+          <p className="text-[11px] opacity-60">
+            אפשר לשלם גם מאוחר יותר — המקום כבר רשום על שמך.
           </p>
           {layout && (
             <div className="w-full">

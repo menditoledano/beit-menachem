@@ -281,14 +281,16 @@ function sendClaimEmail_(name, phone, typedEmail, seatNos, total, isMember) {
   if (!to) to = typedEmail;
   if (!to) return;
 
+  var payUrl = String(getConfig_().PAYMENT_URL || '');
   MailApp.sendEmail({
     to: to,
     subject: 'אישור בחירת מקום — בית מנחם גני איילון',
     htmlBody:
       '<div dir="rtl">שלום ' + name + ',<br><br>' +
       'נרשמה על שמך בחירת מקום/ות: <b>' + seatNos.join(', ') + '</b><br>' +
-      'סכום לתשלום: <b>' + total + ' ש"ח</b><br><br>' +
-      'אם לא אתה ביצעת את הבחירה — השב למייל זה או פנה לגבאי מיד.<br><br>' +
+      'סכום לתשלום: <b>' + total + ' ש"ח</b><br>' +
+      (payUrl ? '<a href="' + payUrl + '">לתשלום מאובטח לחץ כאן</a><br>' : '') +
+      '<br>אם לא אתה ביצעת את הבחירה — השב למייל זה או פנה לגבאי מיד.<br><br>' +
       'בית הכנסת חב"ד "בית מנחם", גני איילון</div>',
   });
 }

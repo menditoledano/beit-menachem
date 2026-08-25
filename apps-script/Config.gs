@@ -46,6 +46,7 @@ var CONFIG_DEFAULTS = {
   BURST_GLOBAL: 40,
   PENDING_TTL_MIN: 10,
   GABBAI_PHONE: '',
+  PAYMENT_URL: 'https://mygabay.com/truma/1734/lnysy',
   ROUND_A_OPENS: '',
   ROUND_A_DEADLINE: '',
   ROUND_B_OPENS: '',

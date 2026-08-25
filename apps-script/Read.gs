@@ -52,6 +52,7 @@ function seatmap() {
     gabbaiPhone: String(cfg.GABBAI_PHONE || ''),
     // Deadline of the reservation hold, verbatim from config, for the countdown.
     reservedUntil: String(cfg.ROUND_A_DEADLINE || ''),
+    paymentUrl: String(cfg.PAYMENT_URL || ''),
     serverTime: new Date().toISOString(),
   };
   cache.put('seatmap', JSON.stringify(payload), 4);

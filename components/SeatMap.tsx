@@ -85,13 +85,13 @@ export function SeatMap({
           const clickable = code === "0" || isMyHold || isSelected;
 
           const cls = isSelected
-            ? "bg-seat-mine ring-2 ring-black"
+            ? "bg-seat-mine ring-2 ring-black shadow-md"
             : isMyHold
               ? "bg-seat-mine/80 ring-2 ring-seat-mine animate-pulse"
               : code === "0"
-                ? "bg-seat-free"
+                ? "bg-seat-free hover:brightness-110"
                 : code === "4"
-                  ? "bg-sky-700"
+                  ? "bg-seat-reserved"
                   : code === "2"
                     ? "bg-seat-pending"
                     : code === "3"
@@ -142,7 +142,7 @@ export function Legend() {
   const items: Array<[string, string]> = [
     ["bg-seat-free", "פנוי"],
     ["bg-seat-taken", "תפוס"],
-    ["bg-sky-700", "שמור לבעל חזקה"],
+    ["bg-seat-reserved", "שמור לבעל חזקה"],
     ["bg-seat-pending", "משוריין"],
     ["bg-seat-mine", "הבחירה שלך"],
   ];
