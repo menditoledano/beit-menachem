@@ -18,6 +18,8 @@ function doGet(e) {
     switch (action) {
       case 'ping':
         return json_({ ok: true, action: 'ping', now: new Date().toISOString() });
+      case 'bootstrap':
+        return bootstrap_();
       default:
         return json_({ ok: false, code: 'UNKNOWN_ACTION', action: action });
     }
@@ -48,6 +50,25 @@ function doPost(e) {
   } catch (err) {
     return json_({ ok: false, code: 'SERVER_ERROR', message: String(err) });
   }
+}
+
+/**
+ * One-time initialisation: generates the shared secret server-side, stores it,
+ * creates the tabs, and returns the secret in the response body exactly once.
+ *
+ * Generating on the server keeps the secret out of query strings (which land in
+ * Google's execution logs) and out of chat transcripts. After the first call
+ * this endpoint permanently refuses, so the /exec URL alone grants nothing.
+ */
+function bootstrap_() {
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty('SHARED_SECRET')) {
+    return json_({ ok: false, code: 'ALREADY_BOOTSTRAPPED' });
+  }
+  var secret = Utilities.getUuid() + '-' + Utilities.getUuid();
+  props.setProperty('SHARED_SECRET', secret);
+  var result = setup();
+  return json_({ ok: true, setup: result, secret: secret });
 }
 
 /**
