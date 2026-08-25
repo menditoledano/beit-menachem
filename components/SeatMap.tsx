@@ -53,14 +53,15 @@ export function SeatMap({
   const mine = useMemo(() => new Set(myReservedSeats ?? []), [myReservedSeats]);
 
   return (
-    <div
-      className="overflow-auto rounded-lg border bg-white p-2"
-      style={{ overscrollBehavior: "contain" }}
-    >
+    <div className="scroll-fade">
       <div
-        className="grid w-max gap-1"
-        style={{ gridTemplateColumns: tracks, gridAutoRows: `${SEAT_PX}px` }}
+        className="overflow-auto rounded-xl"
+        style={{ overscrollBehavior: "contain" }}
       >
+        <div
+          className="grid w-max gap-1 p-1"
+          style={{ gridTemplateColumns: tracks, gridAutoRows: `${SEAT_PX}px` }}
+        >
         {layout.cells.map((cell) => {
           if (cell.kind === "element") {
             return (
@@ -133,6 +134,7 @@ export function SeatMap({
             </button>
           );
         })}
+        </div>
       </div>
     </div>
   );

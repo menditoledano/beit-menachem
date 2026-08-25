@@ -5,6 +5,10 @@
  * registration form: identify → details & aliyot → takanon + dues → pick a
  * seat → done. Each step is one screen on a phone; the map only appears after
  * the declarations, which is what the gabbai's manual flow always enforced.
+ *
+ * Presentation follows one design system (globals.css): a single card
+ * surface, one primary action per screen, pills for every message, and a
+ * step-in transition so the flow reads as one document unrolling.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -215,92 +219,102 @@ export default function WizardPage() {
       )}`
     : undefined;
 
+  const back = (to: Step) => (
+    <button onClick={() => setStep(to)} className="btn-ghost self-start">
+      → חזרה
+    </button>
+  );
+
   /* ---------- shared chrome ---------- */
   return (
-    <main className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-3 p-3">
-      <header className="flex flex-col items-center gap-1 pt-2">
+    <main className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-4 px-4 pb-8 pt-3">
+      <header className="flex flex-col items-center gap-2">
         <Logo compact={step > 0} />
-        <h1 className="text-base font-bold text-brand-maroon-dark">
-          בחירת מקומות לשנת תשפ&quot;ז
-        </h1>
+        {step === 0 && (
+          <h1 className="text-[15px] font-semibold text-brand-maroon-dark">
+            בחירת מקומות לשנת תשפ&quot;ז
+          </h1>
+        )}
       </header>
 
-      {/* progress */}
-      <ol className="flex items-center justify-center gap-1 text-[10px]">
-        {STEP_TITLES.map((t, i) => (
-          <li key={t} className="flex items-center gap-1">
-            <span
-              className={`flex h-6 w-6 items-center justify-center rounded-full font-bold ${
-                i < step ? "bg-seat-free text-white" : i === step ? "bg-brand-maroon text-white" : "bg-gray-200"
-              }`}
-            >
-              {i < step ? "✓" : i + 1}
-            </span>
-            <span className={i === step ? "font-bold" : "opacity-50"}>{t}</span>
-            {i < STEP_TITLES.length - 1 && <span className="opacity-30">—</span>}
-          </li>
-        ))}
-      </ol>
+      {/* progress: a thin filling rail + the current step's name. */}
+      {step < 4 && (
+        <div className="flex flex-col gap-1.5" aria-label={`שלב ${step + 1} מתוך 4`}>
+          <div className="flex gap-1.5" dir="rtl">
+            {[0, 1, 2, 3].map((i) => (
+              <span
+                key={i}
+                className={`h-1 flex-1 rounded-full transition-colors duration-300 ${
+                  i <= step ? "bg-brand-maroon" : "bg-black/10"
+                }`}
+              />
+            ))}
+          </div>
+          <p className="text-center text-xs font-medium opacity-60">
+            {STEP_TITLES[step]}
+          </p>
+        </div>
+      )}
 
       {mode !== "OPEN" && step < 4 && (
-        <div className="rounded border border-amber-400 bg-amber-50 p-2 text-sm">
+        <div className="pill pill-warn step-in">
           {mode === "READONLY" ? "המכירה מוקפאת זמנית." : "המכירה עדיין לא נפתחה — ניתן לצפות במפה בלבד."}
-          {layout && (
-            <details className="mt-1">
-              <summary className="cursor-pointer text-xs underline">הצג את מפת האולם</summary>
-              <div className="mt-2">
-                <SeatMap layout={layout} map={map} selected={[]} onToggleSeat={() => {}} />
-              </div>
-            </details>
-          )}
+        </div>
+      )}
+      {mode !== "OPEN" && step < 4 && layout && (
+        <div className="card step-in p-3">
+          <SeatMap layout={layout} map={map} selected={[]} onToggleSeat={() => {}} />
+          <div className="pt-2"><Legend /></div>
         </div>
       )}
 
       {/* ---------- step 0 ---------- */}
       {step === 0 && mode === "OPEN" && (
-        <section className="flex flex-col gap-3 rounded-lg border bg-white p-4">
-          <h2 className="font-bold">שלום! נתחיל בזיהוי</h2>
-          <p className="text-sm opacity-70">
-            {phase === "A"
-              ? "סבב ראשון — בעלי מקום משנה שעברה. הכנס טלפון ונאתר את המקום השמור לך."
-              : "הכנס מספר טלפון להתחלה."}
-          </p>
+        <section className="card step-in flex flex-col gap-4 p-5">
+          <div>
+            <h2 className="text-xl font-bold">שלום 👋</h2>
+            <p className="mt-1 text-sm opacity-60">
+              {phase === "A"
+                ? "סבב ראשון — בעלי מקום משנה שעברה. הכנס טלפון ונאתר את המקום השמור לך."
+                : "הכנס מספר טלפון כדי להתחיל."}
+            </p>
+          </div>
           <input
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            placeholder="טלפון נייד"
-            className="rounded border p-3 text-lg"
+            placeholder="050-0000000"
+            className="field text-center tracking-wider"
             inputMode="tel"
             autoComplete="tel"
             dir="ltr"
+            aria-label="טלפון נייד"
+            onKeyDown={(e) => e.key === "Enter" && doLookup()}
           />
-          <button
-            onClick={doLookup}
-            disabled={lookupBusy}
-            className="rounded-xl bg-brand-maroon p-3 font-bold shadow hover:bg-brand-maroon-dark text-white disabled:opacity-50"
-          >
+          <button onClick={doLookup} disabled={lookupBusy} className="btn-primary">
             {lookupBusy ? "בודק…" : "המשך"}
           </button>
           {multi.length > 0 && (
-            <div className="rounded border p-2 text-sm">
-              <p className="mb-1">המספר משותף לכמה מתפללים — מי מכם?</p>
-              {multi.map((c) => (
-                <button
-                  key={c.memberId}
-                  onClick={() => { setName(c.name); setMulti([]); setStep(1); }}
-                  className="m-1 rounded border px-3 py-1"
-                >
-                  {c.name}
-                </button>
-              ))}
+            <div className="pill pill-info step-in">
+              <p className="mb-2 font-semibold">המספר משותף לכמה מתפללים — מי מכם?</p>
+              <div className="flex flex-wrap gap-2">
+                {multi.map((c) => (
+                  <button
+                    key={c.memberId}
+                    onClick={() => { setName(c.name); setMulti([]); setStep(1); }}
+                    className="rounded-full bg-white px-4 py-2 text-sm font-semibold shadow-sm"
+                  >
+                    {c.name}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
           {lookupMsg && (
-            <div className="rounded border border-amber-400 bg-amber-50 p-2 text-sm">
+            <div className="pill pill-warn step-in" aria-live="polite">
               {lookupMsg}
               {waHref && (
                 <a href={waHref} target="_blank" rel="noopener noreferrer"
-                  className="mt-2 block w-max rounded bg-green-600 px-4 py-2 font-bold text-white">
+                  className="mt-2 flex w-max items-center gap-2 rounded-full bg-green-600 px-4 py-2 font-bold text-white shadow">
                   וואטסאפ לגבאי
                 </a>
               )}
@@ -311,76 +325,88 @@ export default function WizardPage() {
 
       {/* ---------- step 1 ---------- */}
       {step === 1 && (
-        <section className="flex flex-col gap-3 rounded-lg border bg-white p-4">
-          <h2 className="font-bold">{name ? `שלום ${name}!` : "פרטים אישיים"}</h2>
-          {reservedSeats.length > 0 && (
-            <div className="rounded border border-sky-400 bg-sky-50 p-2 text-sm">
-              🪑 {reservedSeats.length === 1 ? "המקום שלך" : "המקומות שלך"} משנה שעברה —{" "}
-              <b className="tnum">{reservedSeats.join(", ")}</b> —{" "}
-              {reservedSeats.length === 1 ? "שמור" : "שמורים"} לך
-              {map?.reservedUntil ? ` עד ${map.reservedUntil}` : " לזמן מוגבל"}.
-              <div className="mt-1">
-                מחיר אישור: <b className="tnum">{totalPrice(reservedSeats.length)} ₪</b>
+        <section className="card step-in flex flex-col gap-4 p-5">
+          <div>
+            <h2 className="text-xl font-bold">{name ? `שלום ${name.split(" ")[0]}!` : "פרטים אישיים"}</h2>
+            {reservedSeats.length > 0 && (
+              <div className="pill pill-hold mt-2">
+                🪑 {reservedSeats.length === 1 ? "המקום שלך" : "המקומות שלך"} משנה שעברה —{" "}
+                <b className="tnum">{reservedSeats.join(", ")}</b> —{" "}
+                {reservedSeats.length === 1 ? "שמור" : "שמורים"} לך
+                {map?.reservedUntil ? ` עד ${map.reservedUntil}` : " לזמן מוגבל"}.
+                <div className="mt-1 font-semibold">
+                  מחיר אישור: <span className="tnum">{totalPrice(reservedSeats.length)} ₪</span>
+                </div>
+                <div className="mt-1 text-xs opacity-75">
+                  אפשר לאשר את המקום שלך, או לעבור למקום פנוי — מעבר מוותר על הישן.
+                </div>
               </div>
-              <div className="mt-1 text-xs opacity-70">
-                אפשר לאשר את המקום שלך, או לעבור למקום פנוי (ירוק) — מעבר מוותר על המקום הישן.
-              </div>
-            </div>
-          )}
-          <input value={name} onChange={(e) => setName(e.target.value)}
-            placeholder="שם מלא (יוצג על המפה)" className="rounded border p-3" autoComplete="name" />
-          <input value={email} onChange={(e) => setEmail(e.target.value)}
-            placeholder="אימייל לאישור (רשות)" className="rounded border p-3" inputMode="email" dir="ltr" />
-          <div className="rounded border p-2 text-sm">
-            <p className="mb-2">
+            )}
+          </div>
+          <label className="flex flex-col gap-1.5 text-sm font-medium">
+            שם מלא <span className="font-normal opacity-50">(יוצג על המפה)</span>
+            <input value={name} onChange={(e) => setName(e.target.value)}
+              className="field" autoComplete="name" />
+          </label>
+          <label className="flex flex-col gap-1.5 text-sm font-medium">
+            אימייל <span className="font-normal opacity-50">(רשות, לאישור)</span>
+            <input value={email} onChange={(e) => setEmail(e.target.value)}
+              className="field" inputMode="email" dir="ltr" />
+          </label>
+          <div className="rounded-2xl bg-[#f8f6f2] p-4">
+            <p className="text-sm leading-relaxed">
               כל חבר משלם זכאי ל<b>שתי עליות לתורה</b> בשנה (יום הולדת / יארצייט / אחר).
-              בחר שני תאריכים עכשיו — ללא רישום מראש לא תינתן עלייה ברגע האחרון:
+              בחר שני תאריכים עכשיו — ללא רישום מראש לא תינתן עלייה ברגע האחרון.
             </p>
-            <input value={aliyah1} onChange={(e) => setAliyah1(e.target.value)}
-              placeholder="תאריך עברי 1 — למשל: כא סיוון" className="mb-2 w-full rounded border p-2" />
-            <input value={aliyah2} onChange={(e) => setAliyah2(e.target.value)}
-              placeholder="תאריך עברי 2 — למשל: ו תשרי" className="w-full rounded border p-2" />
+            <div className="mt-3 flex flex-col gap-2">
+              <input value={aliyah1} onChange={(e) => setAliyah1(e.target.value)}
+                placeholder="תאריך עברי ראשון — למשל: כא סיוון" className="field bg-white" />
+              <input value={aliyah2} onChange={(e) => setAliyah2(e.target.value)}
+                placeholder="תאריך עברי שני — למשל: ו תשרי" className="field bg-white" />
+            </div>
           </div>
           <button
             onClick={() => setStep(2)}
             disabled={name.trim().length < 2}
-            className="rounded-xl bg-brand-maroon p-3 font-bold shadow hover:bg-brand-maroon-dark text-white disabled:opacity-40"
+            className="btn-primary"
           >
             המשך
           </button>
-          <button onClick={() => setStep(0)} className="text-sm underline opacity-60">חזרה</button>
+          {back(0)}
         </section>
       )}
 
       {/* ---------- step 2 ---------- */}
       {step === 2 && (
-        <section className="flex flex-col gap-3 rounded-lg border bg-white p-4">
-          <h2 className="font-bold">תקנון ותשלום</h2>
-          <label className="flex items-start gap-2 text-sm">
+        <section className="card step-in flex flex-col gap-4 p-5">
+          <h2 className="text-xl font-bold">תקנון ותשלום</h2>
+          <label className="flex cursor-pointer items-start gap-3 rounded-2xl bg-[#f8f6f2] p-4 text-sm leading-relaxed">
             <input type="checkbox" checked={takanonApproved}
-              onChange={(e) => setTakanonApproved(e.target.checked)} className="mt-1 h-5 w-5" />
+              onChange={(e) => setTakanonApproved(e.target.checked)}
+              className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--brand-maroon)]" />
             <span>
               קראתי ואני מאשר את{" "}
               <a href="https://docs.google.com/document/d/1504h4i-Xj4iMDlVG37b5NuWjvShEdZdoVlDppABP574/view"
-                target="_blank" rel="noopener noreferrer" className="underline">
+                target="_blank" rel="noopener noreferrer"
+                className="font-semibold text-brand-maroon underline">
                 תקנון בית הכנסת
               </a>
             </span>
           </label>
-          <label className="flex items-start gap-2 text-sm">
+          <label className="flex cursor-pointer items-start gap-3 rounded-2xl bg-[#f8f6f2] p-4 text-sm leading-relaxed">
             <input type="checkbox" checked={duesDeclared}
-              onChange={(e) => setDuesDeclared(e.target.checked)} className="mt-1 h-5 w-5" />
+              onChange={(e) => setDuesDeclared(e.target.checked)}
+              className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--brand-maroon)]" />
             <span>
               הסדרתי את <b>דמי החבר לתשפ&quot;ז</b> ואת כל חובותיי לשנת תשפ&quot;ו
               (או אסדיר מול הגבאי לפני תחילת השנה)
             </span>
           </label>
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)}
-            placeholder="הארות / הערות יתקבלו בברכה" className="rounded border p-2 text-sm" rows={2} />
+            placeholder="הארות / הערות יתקבלו בברכה"
+            className="field resize-none py-3" rows={2} />
           <button
             onClick={() => {
-              // The holder's own seats arrive preselected: confirming last
-              // year's spot is one tap, moving is an explicit deselect+pick.
               if (reservedSeats.length && !selected.length) {
                 setSelected(reservedSeats);
                 if (!requestIdRef.current) requestIdRef.current = `c-${crypto.randomUUID()}`;
@@ -388,84 +414,97 @@ export default function WizardPage() {
               setStep(3);
             }}
             disabled={!takanonApproved || !duesDeclared}
-            className="rounded-xl bg-brand-maroon p-3 font-bold shadow hover:bg-brand-maroon-dark text-white disabled:opacity-40"
+            className="btn-primary"
           >
             המשך לבחירת מקום
           </button>
-          <button onClick={() => setStep(1)} className="text-sm underline opacity-60">חזרה</button>
+          {back(1)}
         </section>
       )}
 
       {/* ---------- step 3 ---------- */}
       {step === 3 && (
-        <section className="flex flex-col gap-2">
+        <section className="step-in flex flex-col gap-3">
           {reservedSeats.length > 0 && (
-            <div className="rounded border border-sky-400 bg-sky-50 p-2 text-sm">
+            <div className="pill pill-hold" aria-live="polite">
               {selected.some((n) => reservedSeats.includes(n))
-                ? "המקום שלך מסומן — אישור סופי למטה. אפשר גם לעבור למקום פנוי (ירוק)."
+                ? "המקום שלך מסומן — אישור סופי למטה. אפשר גם לעבור למקום פנוי."
                 : "עברת למקום אחר — המקום הישן שלך ישוחרר עם האישור."}
               {map?.reservedUntil && <> שמור עד <b>{map.reservedUntil}</b>.</>}
             </div>
           )}
-          <Legend />
-          {notice && <div className="rounded border bg-white p-2 text-sm">{notice}</div>}
-          {layout ? (
-            <SeatMap
-              layout={layout}
-              map={map}
-              selected={selected}
-              myPhone={normalizePhone(phone)}
-              myReservedSeats={reservedSeats}
-              onToggleSeat={toggleSeat}
-            />
-          ) : (
-            <p className="p-8 text-center opacity-60">טוען את מפת האולם…</p>
-          )}
-          <div className="sticky bottom-2 rounded-lg border bg-white p-3 shadow-lg">
-            <div className="mb-2 flex items-center justify-between text-sm">
-              <span className="tnum">
-                {selected.length
-                  ? `נבחרו: ${[...selected].sort((a, b) => a - b).join(", ")}`
-                  : "לחץ על מקום פנוי במפה"}
-              </span>
-              <b className="tnum">{price} ₪</b>
-            </div>
-            <button
-              onClick={submitClaim}
-              disabled={!selected.length || claimBusy}
-              className="w-full rounded-xl bg-brand-maroon p-3 font-bold shadow hover:bg-brand-maroon-dark text-white disabled:opacity-40"
-            >
-              {claimBusy ? "רושם…" : `אישור סופי — ${price} ₪`}
-            </button>
+          {notice && <div className="pill pill-info" aria-live="polite">{notice}</div>}
+          <div className="card p-3">
+            {layout ? (
+              <SeatMap
+                layout={layout}
+                map={map}
+                selected={selected}
+                myPhone={normalizePhone(phone)}
+                myReservedSeats={reservedSeats}
+                onToggleSeat={toggleSeat}
+              />
+            ) : (
+              <p className="p-8 text-center opacity-50">טוען את מפת האולם…</p>
+            )}
+            <div className="pt-2"><Legend /></div>
           </div>
-          <button onClick={() => setStep(2)} className="text-sm underline opacity-60">חזרה</button>
+
+          <div className="safe-bottom sticky bottom-0 z-10 -mx-4 border-t border-black/5 bg-white/80 px-4 pt-3 backdrop-blur-xl">
+            <div className="mx-auto flex max-w-lg flex-col gap-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="tnum opacity-70">
+                  {selected.length
+                    ? `נבחרו: ${[...selected].sort((a, b) => a - b).join(", ")}`
+                    : "לחץ על מקום פנוי במפה"}
+                </span>
+                <b className="tnum text-lg">{price} ₪</b>
+              </div>
+              <button
+                onClick={submitClaim}
+                disabled={!selected.length || claimBusy}
+                className="btn-primary"
+              >
+                {claimBusy ? "רושם…" : `אישור סופי — ${price} ₪`}
+              </button>
+              {back(2)}
+            </div>
+          </div>
         </section>
       )}
 
       {/* ---------- step 4 ---------- */}
       {step === 4 && (
-        <section className="flex flex-col items-center gap-3 rounded-xl border bg-white p-6 text-center shadow-sm">
-          <span className="text-4xl">🎉</span>
-          <h2 className="text-lg font-bold text-brand-maroon">המקום שלך נרשם!</h2>
-          <p className="tnum">
-            {claimedSeats.length === 1 ? "מקום" : "מקומות"}{" "}
-            <b>{claimedSeats.join(", ")}</b> על שם <b>{name}</b>
-          </p>
-          <p className="text-sm opacity-70">
-            סכום לתשלום: <b className="tnum">{totalPrice(claimedSeats.length)} ₪</b>
-            {email ? " · אישור נשלח למייל" : ""}
-          </p>
+        <section className="card step-in flex flex-col items-center gap-4 p-6 text-center">
+          <span className="flex h-16 w-16 items-center justify-center rounded-full bg-seat-free/10 text-4xl">
+            ✓
+          </span>
+          <div>
+            <h2 className="text-2xl font-bold text-brand-maroon">המקום שלך נרשם!</h2>
+            <p className="mt-2 flex flex-wrap items-center justify-center gap-1.5">
+              {claimedSeats.map((n) => (
+                <span key={n}
+                  className="tnum rounded-full bg-brand-maroon px-3 py-1 text-sm font-bold text-white">
+                  מקום {n}
+                </span>
+              ))}
+            </p>
+            <p className="mt-2 text-sm opacity-60">
+              על שם <b>{name}</b>
+              {email ? " · אישור נשלח למייל" : ""}
+            </p>
+          </div>
           {map?.paymentUrl && (
             <a
               href={map.paymentUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="w-full max-w-xs rounded-xl bg-brand-maroon p-3 text-lg font-bold text-white shadow hover:bg-brand-maroon-dark"
+              className="btn-primary max-w-xs no-underline"
             >
               💳 לתשלום מאובטח — {totalPrice(claimedSeats.length)} ₪
             </a>
           )}
-          <p className="text-[11px] opacity-60">
+          <p className="text-xs opacity-50">
             אפשר לשלם גם מאוחר יותר — המקום כבר רשום על שמך.
           </p>
           {layout && (

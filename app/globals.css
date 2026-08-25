@@ -38,7 +38,8 @@
 }
 
 body {
-  background: var(--background);
+  background:
+    radial-gradient(1200px 500px at 50% -10%, #fff 0%, var(--background) 70%);
   color: var(--foreground);
   font-family: var(--font-heebo), system-ui, sans-serif;
 }
@@ -46,4 +47,110 @@ body {
 /* Seat numbers are compared far more often than they are read as prose. */
 .tnum {
   font-variant-numeric: tabular-nums;
+}
+
+/* ---------- design system ---------- */
+
+/* Card: the only surface. Soft depth instead of borders. */
+.card {
+  background: #fff;
+  border-radius: 1.25rem;
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.04),
+    0 8px 24px -12px rgb(0 0 0 / 0.12);
+}
+
+.btn-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 3rem;
+  border-radius: 1rem;
+  background: var(--brand-maroon);
+  color: #fff;
+  font-weight: 700;
+  font-size: 1.0625rem;
+  box-shadow: 0 6px 16px -6px rgb(154 27 51 / 0.45);
+  transition: transform 0.15s ease, background 0.2s ease, opacity 0.2s;
+}
+.btn-primary:active { transform: scale(0.97); }
+.btn-primary:hover { background: var(--brand-maroon-dark); }
+.btn-primary:disabled { opacity: 0.35; box-shadow: none; }
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 2.5rem;
+  padding: 0 0.75rem;
+  border-radius: 0.75rem;
+  color: var(--brand-maroon);
+  font-weight: 600;
+  font-size: 0.9375rem;
+  transition: background 0.15s;
+}
+.btn-ghost:active { background: rgb(154 27 51 / 0.08); }
+
+.field {
+  width: 100%;
+  min-height: 3rem;
+  padding: 0 1rem;
+  border-radius: 1rem;
+  background: #f4f2ee;
+  border: 1.5px solid transparent;
+  font-size: 1.0625rem;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+.field:focus {
+  outline: none;
+  background: #fff;
+  border-color: var(--brand-maroon);
+  box-shadow: 0 0 0 4px rgb(154 27 51 / 0.10);
+}
+.field::placeholder { color: #a8a29e; }
+
+/* One voice for every message. */
+.pill {
+  border-radius: 1rem;
+  padding: 0.625rem 0.875rem;
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+.pill-info    { background: #eff6ff; color: #1e3a8a; }
+.pill-warn    { background: #fffbeb; color: #92400e; }
+.pill-success { background: #f0fdf4; color: #14532d; }
+.pill-hold    { background: #f0f9ff; color: #075985; }
+
+/* Step transition: content glides up as it appears. */
+@keyframes step-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.step-in { animation: step-in 0.3s cubic-bezier(0.2, 0.7, 0.3, 1) both; }
+
+/* Horizontal scroll affordance: the hall fades out at the edge that has more. */
+.scroll-fade {
+  position: relative;
+}
+.scroll-fade::before,
+.scroll-fade::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 24px;
+  pointer-events: none;
+  z-index: 1;
+}
+.scroll-fade::before { right: 0; background: linear-gradient(to left, #fff, transparent); }
+.scroll-fade::after  { left: 0;  background: linear-gradient(to right, #fff, transparent); }
+
+/* iPhone home-indicator clearance for the sticky action bar. */
+.safe-bottom { padding-bottom: max(0.75rem, env(safe-area-inset-bottom)); }
+
+:focus-visible {
+  outline: 2px solid var(--brand-maroon);
+  outline-offset: 2px;
 }
