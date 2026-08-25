@@ -152,6 +152,20 @@ export function SeatMap({
 
   return (
     <div className="relative">
+      {/* the legend floats over the map so it never scrolls out of sight */}
+      <div className="absolute right-2 top-2 z-10 flex max-w-[70%] flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl bg-white/90 px-3 py-1.5 shadow backdrop-blur">
+        {([
+          ["bg-seat-free", "פנוי"],
+          ["bg-seat-reserved", "שמור"],
+          ["bg-seat-taken", "תפוס"],
+          ["bg-seat-mine", "שלך"],
+        ] as Array<[string, string]>).map(([cls, label]) => (
+          <span key={label} className="flex items-center gap-1 text-[11px] font-semibold">
+            <span className={`inline-block h-3.5 w-3.5 rounded-md ${cls}`} />
+            {label}
+          </span>
+        ))}
+      </div>
       {/* zoom controls: pinch works everywhere, these serve mouse + clarity */}
       <div className="absolute left-2 top-2 z-10 flex flex-col gap-1">
         <button onClick={() => applyZoom(zoom * 1.2)} aria-label="הגדל"
@@ -247,26 +261,6 @@ export function SeatMap({
         </div>
       </div>
       </div>
-    </div>
-  );
-}
-
-export function Legend() {
-  const items: Array<[string, string]> = [
-    ["bg-seat-free", "פנוי"],
-    ["bg-seat-taken", "תפוס"],
-    ["bg-seat-reserved", "שמור לבעל חזקה"],
-    ["bg-seat-pending", "משוריין"],
-    ["bg-seat-mine", "הבחירה שלך"],
-  ];
-  return (
-    <div className="flex flex-wrap gap-3 text-xs">
-      {items.map(([cls, label]) => (
-        <span key={label} className="flex items-center gap-1">
-          <span className={`inline-block h-3 w-3 rounded ${cls}`} />
-          {label}
-        </span>
-      ))}
     </div>
   );
 }

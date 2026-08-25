@@ -20,7 +20,7 @@ import type {
   SeatMapPayload,
 } from "@/lib/domain";
 import { normalizePhone, totalPrice } from "@/lib/domain";
-import { SeatMap, Legend, type SeatSelection } from "@/components/SeatMap";
+import { SeatMap, type SeatSelection } from "@/components/SeatMap";
 import { Logo } from "@/components/Logo";
 
 const POLL_MS = 4_000;
@@ -358,7 +358,6 @@ export default function WizardPage() {
       {mode !== "OPEN" && step < 4 && layout && (
         <div className="card step-in p-3">
           <SeatMap layout={layout} map={map} selected={[]} onToggleSeat={() => {}} />
-          <div className="pt-2"><Legend /></div>
         </div>
       )}
 
@@ -618,7 +617,6 @@ export default function WizardPage() {
             ) : (
               <p className="p-8 text-center opacity-50">טוען את מפת האולם…</p>
             )}
-            <div className="pt-2"><Legend /></div>
           </div>
 
           <div className="safe-bottom sticky bottom-0 z-10 border-t border-black/5 bg-white/80 px-4 pt-3 backdrop-blur-xl">
