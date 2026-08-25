@@ -24,7 +24,7 @@ cd apps-script && npx clasp update-deployment AKfycbzKcgl3JAok2mO5ai5LK2dSkNs4CU
 
 ## Vercel
 
-- **URL זמני ראשון:** https://temporary-brisk-walnut-4j3oh7p.vercel.app (פג תוך שעה אם לא נתבע)
+- **URL זמני ראשון:** https://beit-menachem.vercel.app (קבוע, אחרי תביעה ותיקון framework+domain)
 - נפרס עם `-e GAS_URL -e GAS_SECRET -e ADMIN_TOKEN` מ-.env.local
 - אחרי תביעה: `npx vercel link` בריפו, ואז `npx vercel deploy --prod` לעדכונים
 - בדיקת Origin מקבלת self-origin אוטומטית — אין צורך לעדכן ALLOWED_HOSTS בהחלפת דומיין
