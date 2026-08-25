@@ -46,6 +46,14 @@ function doPost(e) {
         return json_({ ok: true, action: 'ping', now: new Date().toISOString() });
       case 'importMembers':
         return json_({ ok: true, result: importMembers() });
+      case 'saveLayout':
+        return json_({ ok: true, result: saveLayout(body) });
+      case 'loadLayout':
+        return json_({ ok: true, layout: loadLayout() });
+      case 'publishLayout':
+        return json_({ ok: true, result: publishLayout(body) });
+      case 'getLayout':
+        return json_({ ok: true, compiled: JSON.parse(getCompiledLayout() || 'null') });
       case 'debugSourceTabs':
         return json_({
           ok: true,
