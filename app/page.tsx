@@ -181,12 +181,39 @@ export default function WizardPage() {
         );
         return cur;
       }
-      // Third seat: adjacency to the pair (same table side, neighbouring
-      // number). Numbering ascends along a side, so |Δ| = 1 is adjacency.
+      // Third seat: must be on the ARK-FACING side, adjacent to the pair's
+      // facing member — growth is facing-first, so no back-row chair is ever
+      // sold without its opposite. Tapping the "wrong" chair redirects to the
+      // right one with an explanation instead of a dead end.
       if (next.length === 3) {
-        const adjacent = cur.some((c) => Math.abs(sel.seatNo - c) === 1);
-        if (!adjacent) {
-          setNotice("המקום השלישי חייב להיות צמוד לזוג שבחרת.");
+        const facingInCur = cur.find((c) => {
+          const cell = layout?.cells.find((x) => x.kind === "seat" && x.seatNo === c);
+          return cell?.kind === "seat" && cell.facing === "ark";
+        });
+        const isValidThird =
+          sel.facing === "ark" &&
+          facingInCur !== undefined &&
+          Math.abs(sel.seatNo - facingInCur) === 1;
+        if (!isValidThird) {
+          // The tapped chair's own opposite may be exactly the right pick —
+          // tapping 180 next to your pair silently means "the 174 spot".
+          const redirect =
+            sel.facing !== "ark" &&
+            sel.pairSeatNo &&
+            facingInCur !== undefined &&
+            Math.abs(sel.pairSeatNo - facingInCur) === 1 &&
+            seatAvailable(sel.pairSeatNo)
+              ? sel.pairSeatNo
+              : null;
+          if (redirect) {
+            setNotice(
+              `בחרנו עבורך את מקום ${redirect} (מול ${sel.seatNo}) — הכיסא השלישי חייב להיות בצד הפונה לארון, כדי שלא יישאר כיסא גב בלי מקום מולו. את ${sel.seatNo} יוכל לקחת מי שישב מול.`,
+            );
+            return [...cur, redirect];
+          }
+          setNotice(
+            "הכיסא השלישי חייב להיות בצד הפונה לארון, צמוד לזוג שבחרת — כך לא נשאר כיסא גב בלי מקום מולו.",
+          );
           return cur;
         }
       }
@@ -242,7 +269,11 @@ export default function WizardPage() {
           setNotice(`המקום השני חייב להיות מול הראשון${data.pairSeatNo ? ` — מקום ${data.pairSeatNo}` : ""}.`);
           break;
         case "SHAPE_ADJACENT":
-          setNotice("המקום השלישי חייב להיות צמוד לזוג שבחרת.");
+          setNotice(
+            `הכיסא השלישי חייב להיות בצד הפונה לארון, צמוד לזוג${
+              data.suggestions?.length ? ` — למשל מקום ${data.suggestions.join(" או ")}` : ""
+            }.`,
+          );
           break;
         case "CAP_REACHED":
           setNotice(`תקרה: עד ${data.cap} מקומות לטלפון.`);

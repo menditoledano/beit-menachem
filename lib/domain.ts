@@ -149,6 +149,8 @@ export type ClaimResponse =
       holder?: string;
       /** Present on PAIR_REQUIRED. */
       pairSeatNo?: number;
+      /** Present on SHAPE_ADJACENT: the valid facing-side third seats. */
+      suggestions?: number[];
       /** Present on CAP_REACHED. */
       cap?: number;
       held?: number;

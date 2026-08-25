@@ -150,20 +150,39 @@ function claim(body) {
         var extras = seatNos.filter(function (n) {
           return n !== pairFound[0] && n !== pairFound[1];
         });
-        // Numbering ascends along a table side, so adjacency on the same
-        // table and side is exactly a seat-number difference of one.
-        var adjacentOk = extras.every(function (n) {
+        // A third seat must sit on the ARK-FACING side, adjacent to the
+        // pair's facing member. Growth is facing-first by design: a back-row
+        // seat must never be sold without its opposite, so the extra chair
+        // opens a new pair from the facing side — its opposite stays
+        // available for the next buyer.
+        var facingOfPair = pairFound.filter(function (pnum) {
+          var pr = bySeat[pnum].row;
+          return pr[COLS.FACING - 1] === true || pr[COLS.FACING - 1] === 'TRUE';
+        })[0];
+        var adjacentOk = facingOfPair !== undefined && extras.every(function (n) {
           var er = bySeat[n].row;
-          return pairFound.some(function (pnum) {
-            var pr = bySeat[pnum].row;
-            return String(er[COLS.TABLE_ID - 1]) === String(pr[COLS.TABLE_ID - 1]) &&
-              String(er[COLS.SIDE - 1]) === String(pr[COLS.SIDE - 1]) &&
-              Math.abs(n - pnum) === 1;
-          });
+          var facing = er[COLS.FACING - 1] === true || er[COLS.FACING - 1] === 'TRUE';
+          var pr = bySeat[facingOfPair].row;
+          return facing &&
+            String(er[COLS.TABLE_ID - 1]) === String(pr[COLS.TABLE_ID - 1]) &&
+            Math.abs(n - facingOfPair) === 1;
         });
         if (!adjacentOk) {
+          // Offer the valid neighbours so the client can guide, not scold.
+          var suggestions = [];
+          if (facingOfPair !== undefined) {
+            [facingOfPair - 1, facingOfPair + 1].forEach(function (n) {
+              var e2 = bySeat[n];
+              if (e2 && (e2.row[COLS.STATUS - 1] === STATUS.FREE || reservedForMe(e2.row)) &&
+                  String(e2.row[COLS.TABLE_ID - 1]) ===
+                  String(bySeat[facingOfPair].row[COLS.TABLE_ID - 1]) &&
+                  (e2.row[COLS.FACING - 1] === true || e2.row[COLS.FACING - 1] === 'TRUE')) {
+                suggestions.push(n);
+              }
+            });
+          }
           return fail_(cache, reqId, 'SHAPE_ADJACENT', {
-            pair: pairFound, seatNo: extras[0],
+            pair: pairFound, seatNo: extras[0], suggestions: suggestions,
           });
         }
       }
