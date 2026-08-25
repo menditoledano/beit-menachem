@@ -102,57 +102,46 @@ function runChazakaMatching(body) {
 }
 
 /**
- * Old-hall geometry, for translating a תשפ"ו seat NUMBER into a physical
- * POSITION. Seat numbers are meaningless across the move — the hall grew from
- * 5 table-pairs to 7 — but a position (pair-from-ark, block, row, side) maps
- * one-to-one onto the new layout, because the seed preserved the block
- * structure and kept the bimah at its old third-pair-from-ark slot.
- *
- * Old numbering, per the תשפ"ו map: pairs counted from the ark, each column
- * numbered top-block (6), middle-block (4), bottom-block (6) sequentially;
- * ark-side column of a pair first, then the far column. The bimah pair has no
- * middle block; the last pair exists only in the bottom block.
+ * Core-hall geometry, transcribed from the source-of-truth tab "מקומות תשפ\"ה".
+ * Each entry: sheet start row, row count, and the seat pairs as
+ * [arkSideCol, farCol] in sheet coordinates, nearest-ark first. This MUST
+ * mirror HALL_BLOCKS in lib/layout.ts — the tableIds t-{block}-p{i} are the
+ * contract between the two.
  */
-var OLD_PAIRS = [
-  { first: 1, blocks: [6, 4, 6] },   // pair 0, nearest the ark: seats 1-32
-  { first: 33, blocks: [6, 4, 6] },  // pair 1: 33-64
-  { first: 65, blocks: [6, 0, 6] },  // pair 2 (bimah): 65-88
-  { first: 89, blocks: [6, 4, 6] },  // pair 3: 89-120
-  { first: 121, blocks: [0, 0, 6] }, // pair 4, entrance side: 121-132
+var CORE_BLOCKS = [
+  { name: 'top', startRow: 0, rows: 6, pairs: [[2, 3], [5, 6], [8, 9], [11, 12]] },
+  { name: 'mid', startRow: 8, rows: 4, pairs: [[3, 4], [6, 7], [13, 14]] },
+  { name: 'bottom', startRow: 14, rows: 6, pairs: [[2, 3], [5, 6], [8, 9], [11, 12], [14, 15]] },
 ];
-var NEW_PAIRS_TOTAL = 7;
 
-/** Old seat number -> {pairFromArk, block, rowInBlock, arkSideCol} or null. */
-function oldSeatPosition_(n) {
-  for (var p = 0; p < OLD_PAIRS.length; p++) {
-    var colSize = OLD_PAIRS[p].blocks[0] + OLD_PAIRS[p].blocks[1] + OLD_PAIRS[p].blocks[2];
-    var pairSize = colSize * 2;
-    var offset = n - OLD_PAIRS[p].first;
-    if (offset < 0 || offset >= pairSize) continue;
-    var arkSideCol = offset < colSize;               // ark-side column numbered first
-    var inCol = offset % colSize;
-    for (var b = 0; b < 3; b++) {
-      if (inCol < OLD_PAIRS[p].blocks[b]) {
-        return { pairFromArk: p, block: b, rowInBlock: inCol, arkSideCol: arkSideCol };
-      }
-      inCol -= OLD_PAIRS[p].blocks[b];
+/** Sheet cell (row, col) -> {block, pairIdx, rowInBlock, side} or null. */
+function coreCellPosition_(r, c) {
+  for (var b = 0; b < CORE_BLOCKS.length; b++) {
+    var blk = CORE_BLOCKS[b];
+    if (r < blk.startRow || r >= blk.startRow + blk.rows) continue;
+    for (var p = 0; p < blk.pairs.length; p++) {
+      if (c === blk.pairs[p][0]) return { block: blk.name, pairIdx: p, rowInBlock: r - blk.startRow, side: 'a' };
+      if (c === blk.pairs[p][1]) return { block: blk.name, pairIdx: p, rowInBlock: r - blk.startRow, side: 'b' };
     }
   }
   return null;
 }
 
+/** Non-seat labels that may appear inside the grid area of the core tab. */
+var CORE_LABELS = { 'חזן': 1, 'ארון קודש': 1, 'בימת ספר תורה': 1, 'כניסה': 1, 'כיור': 1, 'ספריה': 1 };
+
 /**
- * Seeds last year's holders onto the new map as reserved seats, preserving
- * each holder's PHYSICAL position — same pair-from-ark, same block, same row,
- * same side of the table — not the old seat number, which no longer means
- * anything. Only APPROVED chazaka rows with a phone produce reservations.
+ * Seeds reservations straight from the core tab: every NAMED CELL becomes a
+ * reserved seat at the same physical position in the new layout — same block,
+ * same pair-from-ark, same row, same table side. No seat-number translation
+ * exists anymore; the name grid IS the source of truth. Only names that
+ * resolve to an approved _Chazaka phone produce reservations.
  */
 function seedChazakaSeats(body) {
-  var tabName = String((body && body.tab) || OLD_MAP_TAB);
+  var tabName = String((body && body.tab) || 'מקומות תשפ"ה');
   var src = ss_().getSheetByName(tabName);
   if (!src) throw new Error('לא נמצא טאב "' + tabName + '"');
 
-  // name-key -> {name, phone} from approved chazaka rows
   var chz = sheet_(TAB.CHAZAKA);
   var byKey = {};
   if (chz.getLastRow() > 1) {
@@ -167,13 +156,7 @@ function seedChazakaSeats(body) {
       });
   }
 
-  // old seat number -> holder display name
-  var oldSeatHolder = {};
-  src.getDataRange().getValues().forEach(function (r) {
-    var no = Number(r[0]);
-    var nm = String(r[1] || '').trim();
-    if (no >= 1 && no <= 300 && nm && isNaN(Number(nm))) oldSeatHolder[no] = nm;
-  });
+  var grid = src.getDataRange().getValues();
 
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(20000)) throw new Error('BUSY');
@@ -183,56 +166,46 @@ function seedChazakaSeats(body) {
     if (lastRow < 2) throw new Error('אין מקומות — פרסם פריסה קודם');
     var rows = sh.getRange(2, 1, lastRow - 1, SEAT_WIDTH).getValues();
 
-    // Index the NEW seats by physical position. tableId encodes pair and
-    // block ('t-p{p}-b{b}'); within a table+side, seat numbers ascend with
-    // the row, so sorting them recovers rowInBlock without storing geometry.
-    var byPosition = {}; // 'pairFromArk|block|row|side' -> row index in sheet
-    var tableSeats = {}; // tableId+side -> [{seatNo, idx}]
+    // New seats indexed by physical position via tableId 't-{block}-p{i}'.
+    var tableSeats = {};
     rows.forEach(function (r, i) {
       var key = String(r[COLS.TABLE_ID - 1]) + '|' + String(r[COLS.SIDE - 1]);
-      (tableSeats[key] = tableSeats[key] || []).push({
-        seatNo: Number(r[COLS.SEAT_NO - 1]), idx: i,
-      });
+      (tableSeats[key] = tableSeats[key] || []).push({ seatNo: Number(r[COLS.SEAT_NO - 1]), idx: i });
     });
+    var byPosition = {};
     Object.keys(tableSeats).forEach(function (key) {
       var parts = key.split('|');
-      var m = /^t-p(\d+)-b(\d+)$/.exec(parts[0]);
+      var m = /^t-(top|mid|bottom)-p(\d+)$/.exec(parts[0]);
       if (!m) return;
-      var pairFromArk = NEW_PAIRS_TOTAL - 1 - Number(m[1]);
-      var block = Number(m[2]);
-      // Side 'a' is the ark-facing (ark-side) column, matching the old
-      // pair's first-numbered column.
-      var side = parts[1] === 'a';
       tableSeats[key].sort(function (x, y) { return x.seatNo - y.seatNo; });
       tableSeats[key].forEach(function (s, rowInBlock) {
-        byPosition[pairFromArk + '|' + block + '|' + rowInBlock + '|' + (side ? 'ark' : 'far')] = s.idx;
+        byPosition[m[1] + '|' + m[2] + '|' + rowInBlock + '|' + parts[1]] = s.idx;
       });
     });
 
     var reserved = 0, skippedNoPhone = 0, skippedTaken = 0, unmappable = [];
-    Object.keys(oldSeatHolder).forEach(function (noStr) {
-      var no = Number(noStr);
-      var holderName = oldSeatHolder[no];
-      var pos = oldSeatPosition_(no);
-      if (!pos) { unmappable.push(no); return; }
-      var idx = byPosition[
-        pos.pairFromArk + '|' + pos.block + '|' + pos.rowInBlock + '|' +
-        (pos.arkSideCol ? 'ark' : 'far')
-      ];
-      if (idx === undefined) { unmappable.push(no); return; }
-      if (rows[idx][COLS.STATUS - 1] !== STATUS.FREE) { skippedTaken++; return; }
-      var match = byKey[keyTight_(holderName)];
-      if (!match) { skippedNoPhone++; return; }
-      sh.getRange(idx + 2, COLS.STATUS).setValue(STATUS.RESERVED);
-      sh.getRange(idx + 2, COLS.CHAZAKA_NAME, 1, 2).setValues([[match.name, match.phone]]);
-      reserved++;
-    });
+    for (var r = 0; r < grid.length; r++) {
+      for (var c = 0; c < grid[r].length; c++) {
+        var nm = String(grid[r][c] || '').trim();
+        if (!nm || CORE_LABELS[nm]) continue;
+        var pos = coreCellPosition_(r, c);
+        if (!pos) { unmappable.push(nm + '@' + r + ',' + c); continue; }
+        var idx = byPosition[pos.block + '|' + pos.pairIdx + '|' + pos.rowInBlock + '|' + pos.side];
+        if (idx === undefined) { unmappable.push(nm + '@' + r + ',' + c); continue; }
+        if (rows[idx][COLS.STATUS - 1] !== STATUS.FREE) { skippedTaken++; continue; }
+        var match = byKey[keyTight_(nm)];
+        if (!match) { skippedNoPhone++; continue; }
+        sh.getRange(idx + 2, COLS.STATUS).setValue(STATUS.RESERVED);
+        sh.getRange(idx + 2, COLS.CHAZAKA_NAME, 1, 2).setValues([[nm, match.phone]]);
+        reserved++;
+      }
+    }
 
     SpreadsheetApp.flush();
     CacheService.getScriptCache().remove('seatmap');
     var summary = 'reserved=' + reserved +
       ' unapprovedHolder=' + skippedNoPhone + ' alreadyTaken=' + skippedTaken +
-      (unmappable.length ? ' unmappable=' + unmappable.join('/') : '');
+      (unmappable.length ? ' unmappable=' + unmappable.slice(0, 8).join(';') : '');
     logAction_('SEED_CHAZAKA', '', '', '', '', 'ok', summary, '');
     return summary;
   } finally {

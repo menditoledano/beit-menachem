@@ -45,66 +45,98 @@ export interface HallLayout {
 }
 
 /**
- * The old hall (12×15m, 132 seats) as the proportional seed for the new one
- * (20×15m). The width axis is unchanged; the length axis grows by 20/12, which
- * at the structural level means the five table-column-pairs become seven while
- * the three bench blocks (6/4/6 rows) stay as they were. Seven pairs yield
- * ~186 seats — inside the 180–200 target.
+ * The hall structure, transcribed cell-for-cell from the source-of-truth tab
+ * "מקומות תשפ"ה" and extended for the new 20×15m hall.
  *
- * Grid convention: RTL. Column 1 is the physical RIGHT edge of the hall
- * (entrance side); high columns are the physical LEFT (ark side). A table pair
- * occupies two adjacent columns; aisles are the single columns between pairs.
+ * The real hall is asymmetric and that asymmetry is preserved exactly:
+ *   top block    (sheet rows 0-5):  4 pairs at sheet cols (2,3)(5,6)(8,9)(11,12)
+ *   middle block (sheet rows 8-11): 3 pairs OFFSET one column — (3,4)(6,7)(13,14),
+ *                                   with the bimah between at sheet cols 9-10
+ *   bottom block (sheet rows 14-19): 5 pairs, the top's four plus (14,15)
+ * = 132 core seats. The growth adds two entrance-side pairs per block
+ * (marked isNew) for 196 seats total.
+ *
+ * Sheet col 0 is the ark wall; sheet col 17 was the entrance wall and moves
+ * outward to make room. In OUR grid (RTL, column 1 = rightmost = entrance,
+ * high columns = ark) a sheet column c lands at grid col SHEET_COLS - c.
  */
-export function seedFromOldHall(): HallLayout {
-  const BLOCKS = [
-    { startRow: 2, rows: 6 }, // top bench block
-    { startRow: 10, rows: 4 }, // middle block (bimah sits beside it)
-    { startRow: 16, rows: 6 }, // bottom bench block
-  ];
-  const PAIRS = 7;
-  // Rightmost pair starts at col 2; each pair is 2 cols + 1 aisle col.
-  const pairCol = (i: number) => 2 + i * 3;
+const SHEET_COLS = 25; // ark wall 0 … entrance wall 24, after the extension
+const toGrid = (sheetCol: number) => SHEET_COLS - sheetCol;
+/** Sheet row r (0-based) → grid row (1-based, one row of margin on top). */
+const rowGrid = (sheetRow: number) => sheetRow + 2;
 
+interface BlockSpec {
+  name: "top" | "mid" | "bottom";
+  sheetStartRow: number;
+  rows: number;
+  /** [arkSideCol, farCol] in sheet coordinates, ordered nearest-ark first. */
+  corePairs: Array<[number, number]>;
+  newPairs: Array<[number, number]>;
+}
+
+export const HALL_BLOCKS: BlockSpec[] = [
+  {
+    name: "top", sheetStartRow: 0, rows: 6,
+    corePairs: [[2, 3], [5, 6], [8, 9], [11, 12]],
+    newPairs: [[14, 15], [17, 18]],
+  },
+  {
+    name: "mid", sheetStartRow: 8, rows: 4,
+    corePairs: [[3, 4], [6, 7], [13, 14]],
+    newPairs: [[16, 17], [19, 20]],
+  },
+  {
+    name: "bottom", sheetStartRow: 14, rows: 6,
+    corePairs: [[2, 3], [5, 6], [8, 9], [11, 12], [14, 15]],
+    newPairs: [[17, 18], [20, 21]],
+  },
+];
+
+export function seedFromOldHall(): HallLayout {
   const tables: TableSpec[] = [];
   const numberingOrder: string[] = [];
 
-  // Numbering walks ark-side first (the old map numbered 1-32 nearest the
-  // ark), so iterate pairs from the LEFT (high pair index) toward the right.
-  // The bimah keeps its OLD relative position: third pair from the ark, as it
-  // was in the 5-pair hall (old pair index 2 of 0..4 counted from the ark).
-  // Physical continuity for last year's holders trumps geometric centring.
-  const BIMAH_PAIR = PAIRS - 1 - 2;
-  for (let p = PAIRS - 1; p >= 0; p--) {
-    for (let b = 0; b < BLOCKS.length; b++) {
-      const isBimahSlot = b === 1 && p === BIMAH_PAIR;
-      if (isBimahSlot) continue;
-      const id = `t-p${p}-b${b}`;
+  // Numbering: ark-nearest pair first within each block, blocks top→bottom
+  // per pair index — mirroring how the old map read.
+  for (const block of HALL_BLOCKS) {
+    const pairs = [...block.corePairs, ...block.newPairs];
+    pairs.forEach(([arkCol], pairIdx) => {
+      const id = `t-${block.name}-p${pairIdx}`;
       tables.push({
         kind: "table",
         id,
-        row: BLOCKS[b].startRow,
-        col: pairCol(p),
+        row: rowGrid(block.sheetStartRow),
+        // Anchor at the pair's lower grid col; side "a" resolves to the
+        // higher grid col — which is toGrid(arkCol), the ark-side seat.
+        col: toGrid(arkCol) - 1,
         orientation: "v",
-        seatsPerSide: BLOCKS[b].rows,
-        zone: p >= PAIRS - 2 ? "מזרח" : p >= 2 ? "מרכז" : "כניסה",
+        seatsPerSide: block.rows,
+        zone: pairIdx <= 1 ? "מזרח" : pairIdx <= 3 ? "מרכז" : "כניסה",
       });
-      numberingOrder.push(id);
+    });
+  }
+  // Walk numbering ark-outward across blocks: pair 0 of every block first.
+  const maxPairs = Math.max(...HALL_BLOCKS.map((b) => b.corePairs.length + b.newPairs.length));
+  for (let p = 0; p < maxPairs; p++) {
+    for (const block of HALL_BLOCKS) {
+      const id = `t-${block.name}-p${p}`;
+      if (tables.some((t) => t.id === id)) numberingOrder.push(id);
     }
   }
 
-  const gridCols = pairCol(PAIRS - 1) + 2 + 2; // last pair + its width + ark margin
-  const gridRows = 23;
+  const gridCols = SHEET_COLS + 1; // + ark margin column
+  const gridRows = rowGrid(19) + 1;
 
   const elements: ElementSpec[] = [
-    { kind: "element", id: "ark", label: "ארון קודש", row: 10, col: gridCols - 1, rowSpan: 4, colSpan: 2 },
-    { kind: "element", id: "chazan", label: "חזן", row: 8, col: gridCols - 1, rowSpan: 1, colSpan: 1 },
-    {
-      kind: "element", id: "bimah", label: "בימת ספר תורה",
-      row: 10, col: pairCol(PAIRS - 1 - 2), rowSpan: 4, colSpan: 2,
-    },
-    { kind: "element", id: "entrance", label: "כניסה", row: 2, col: 1, rowSpan: 2, colSpan: 1 },
-    { kind: "element", id: "sink", label: "כיור", row: 6, col: 1, rowSpan: 3, colSpan: 1 },
-    { kind: "element", id: "library", label: "ספריה", row: 14, col: 1, rowSpan: 8, colSpan: 1 },
+    // Sheet: ark at col 0 rows 8-11, chazan row 7; both on the ark wall.
+    { kind: "element", id: "ark", label: "ארון קודש", row: rowGrid(8), col: toGrid(0), rowSpan: 4, colSpan: 1 },
+    { kind: "element", id: "chazan", label: "חזן", row: rowGrid(7), col: toGrid(0), rowSpan: 1, colSpan: 1 },
+    // Bimah between the middle pairs, sheet cols 9-10 (colSpan spans both).
+    { kind: "element", id: "bimah", label: "בימת ספר תורה", row: rowGrid(8), col: toGrid(10), rowSpan: 4, colSpan: 2 },
+    // Entrance wall fixtures move outward with the hall: sheet col 24.
+    { kind: "element", id: "entrance", label: "כניסה", row: rowGrid(0), col: toGrid(24), rowSpan: 2, colSpan: 1 },
+    { kind: "element", id: "sink", label: "כיור", row: rowGrid(2), col: toGrid(24), rowSpan: 2, colSpan: 1 },
+    { kind: "element", id: "library", label: "ספריה", row: rowGrid(14), col: toGrid(24), rowSpan: 6, colSpan: 1 },
   ];
 
   return { rows: gridRows, cols: gridCols, tables, elements, numberingOrder };

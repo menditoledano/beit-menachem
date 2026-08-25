@@ -76,6 +76,18 @@ function doPost(e) {
         return json_({ ok: true, result: seedChazakaSeats(body) });
       case 'releaseReservedSeats':
         return json_({ ok: true, result: releaseReservedSeats() });
+      case 'listSheets':
+        return json_({
+          ok: true,
+          sheets: ss_().getSheets().map(function (sh) {
+            return { name: sh.getName(), gid: sh.getSheetId(), rows: sh.getLastRow(), cols: sh.getLastColumn() };
+          }),
+        });
+      case 'readTab': {
+        var tabSh = ss_().getSheetByName(String(body.tab || ''));
+        if (!tabSh) return json_({ ok: false, code: 'NO_TAB' });
+        return json_({ ok: true, values: tabSh.getDataRange().getValues() });
+      }
       case 'debugSourceTabs':
         return json_({
           ok: true,
