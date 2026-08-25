@@ -34,6 +34,13 @@ export default function WizardPage() {
   const [phone, setPhone] = useState("");
   const [name, setName] = useState("");
   const [reservedSeats, setReservedSeats] = useState<number[]>([]);
+  /**
+   * A returning holder's declared intent: keep last year's seats (fast lane,
+   * skips the map entirely) or switch (passes an explicit release warning
+   * first). Null until they choose.
+   */
+  const [intent, setIntent] = useState<null | "keep" | "switch">(null);
+  const [switchWarning, setSwitchWarning] = useState(false);
   const [lookupBusy, setLookupBusy] = useState(false);
   const [lookupMsg, setLookupMsg] = useState("");
   const [multi, setMulti] = useState<Array<{ memberId: string; name: string }>>([]);
@@ -224,7 +231,9 @@ export default function WizardPage() {
 
   const price = totalPrice(selected.length);
 
-  const submitClaim = async () => {
+  const submitClaim = async (seats?: number[]) => {
+    const seatNos = seats ?? selected;
+    if (!requestIdRef.current) requestIdRef.current = `c-${crypto.randomUUID()}`;
     setClaimBusy(true);
     setNotice("");
     try {
@@ -236,7 +245,7 @@ export default function WizardPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           requestId: requestIdRef.current,
-          seatNos: selected,
+          seatNos,
           name: name.trim(),
           phone: normalizePhone(phone),
           email: email.trim(),
@@ -414,17 +423,57 @@ export default function WizardPage() {
           <div>
             <h2 className="text-xl font-bold">{name ? `שלום ${name.split(" ")[0]}!` : "פרטים אישיים"}</h2>
             {reservedSeats.length > 0 && (
-              <div className="pill pill-hold mt-2">
+              <div className="pill pill-hold mt-2 step-in">
                 🪑 {reservedSeats.length === 1 ? "המקום שלך" : "המקומות שלך"} משנה שעברה —{" "}
                 <b className="tnum">{reservedSeats.join(", ")}</b> —{" "}
                 {reservedSeats.length === 1 ? "שמור" : "שמורים"} לך
                 {map?.reservedUntil ? ` עד ${map.reservedUntil}` : " לזמן מוגבל"}.
-                <div className="mt-1 font-semibold">
-                  מחיר אישור: <span className="tnum">{totalPrice(reservedSeats.length)} ₪</span>
-                </div>
-                <div className="mt-1 text-xs opacity-75">
-                  אפשר לאשר את המקום שלך, או לעבור למקום פנוי — מעבר מוותר על הישן.
-                </div>
+
+                {intent === null && !switchWarning && (
+                  <div className="mt-3 flex flex-col gap-2">
+                    <button
+                      onClick={() => setIntent("keep")}
+                      className="btn-primary"
+                    >
+                      ✓ אשר את {reservedSeats.length === 1 ? "המקום שלי" : "המקומות שלי"} —{" "}
+                      {totalPrice(reservedSeats.length)} ₪
+                    </button>
+                    <button onClick={() => setSwitchWarning(true)} className="btn-ghost self-center">
+                      אני רוצה מקום אחר
+                    </button>
+                  </div>
+                )}
+
+                {switchWarning && intent === null && (
+                  <div className="pill pill-warn mt-3 step-in">
+                    <b>שים לב:</b> בחירת מקום אחר משחררת את{" "}
+                    {reservedSeats.length === 1 ? "מקומך" : "מקומותיך"} משנה שעברה
+                    (<span className="tnum">{reservedSeats.join(", ")}</span>) —{" "}
+                    {reservedSeats.length === 1 ? "הוא ייפתח" : "הם ייפתחו"} לכל דורש ולא ניתן להתחרט.
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        onClick={() => { setIntent("switch"); setSwitchWarning(false); setSelected([]); }}
+                        className="rounded-xl bg-amber-600 px-4 py-2 font-bold text-white"
+                      >
+                        הבנתי, בחר מקום חדש
+                      </button>
+                      <button onClick={() => setSwitchWarning(false)} className="btn-ghost">
+                        ביטול
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {intent === "keep" && (
+                  <div className="mt-2 font-semibold text-green-800">
+                    ✓ נשארים במקום. השלם את הפרטים למטה והמשך לאישור.
+                  </div>
+                )}
+                {intent === "switch" && (
+                  <div className="mt-2 text-xs opacity-75">
+                    בחרת לעבור מקום — המקום הישן ישוחרר עם האישור הסופי.
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -452,11 +501,16 @@ export default function WizardPage() {
           </div>
           <button
             onClick={() => setStep(2)}
-            disabled={name.trim().length < 2}
+            disabled={name.trim().length < 2 || (reservedSeats.length > 0 && intent === null)}
             className="btn-primary"
           >
             המשך
           </button>
+          {reservedSeats.length > 0 && intent === null && (
+            <p className="text-center text-xs opacity-50">
+              בחר קודם: לאשר את המקום שלך או לעבור למקום אחר
+            </p>
+          )}
           {back(0)}
         </section>
       )}
@@ -504,17 +558,26 @@ export default function WizardPage() {
             className="field resize-none py-3" rows={2} />
           <button
             onClick={() => {
-              if (reservedSeats.length && !selected.length) {
+              // The fast lane: a holder keeping last year's seats never sees
+              // the map — declarations done, the claim fires directly and
+              // lands on the payment screen.
+              if (intent === "keep" && reservedSeats.length) {
                 setSelected(reservedSeats);
-                if (!requestIdRef.current) requestIdRef.current = `c-${crypto.randomUUID()}`;
+                submitClaim(reservedSeats);
+                return;
               }
               setStep(3);
             }}
-            disabled={!takanonApproved || !duesDeclared}
+            disabled={!takanonApproved || !duesDeclared || claimBusy}
             className="btn-primary"
           >
-            המשך לבחירת מקום
+            {claimBusy
+              ? "רושם…"
+              : intent === "keep" && reservedSeats.length
+                ? `אישור סופי — ${totalPrice(reservedSeats.length)} ₪`
+                : "המשך לבחירת מקום"}
           </button>
+          {notice && <div className="pill pill-warn" aria-live="polite">{notice}</div>}
           {back(1)}
         </section>
       )}
@@ -526,11 +589,10 @@ export default function WizardPage() {
           style={{ width: "min(100vw - 1.5rem, 1100px)" }}
         >
           {reservedSeats.length > 0 && (
-            <div className="pill pill-hold" aria-live="polite">
+            <div className="pill pill-warn" aria-live="polite">
               {selected.some((n) => reservedSeats.includes(n))
-                ? "המקום שלך מסומן — אישור סופי למטה. אפשר גם לעבור למקום פנוי."
-                : "עברת למקום אחר — המקום הישן שלך ישוחרר עם האישור."}
-              {map?.reservedUntil && <> שמור עד <b>{map.reservedUntil}</b>.</>}
+                ? "בחרת שוב את המקום שלך — אישור סופי למטה."
+                : `בחירת מקום חדש תשחרר את ${reservedSeats.length === 1 ? "מקומך הישן" : "מקומותיך הישנים"} (${reservedSeats.join(", ")}) לכל דורש.`}
             </div>
           )}
           {notice && <div className="pill pill-info" aria-live="polite">{notice}</div>}
@@ -566,7 +628,7 @@ export default function WizardPage() {
                     </span>
                     <b className="tnum text-lg">{price} ₪</b>
                   </div>
-                  <button onClick={submitClaim} disabled={claimBusy} className="btn-primary">
+                  <button onClick={() => submitClaim()} disabled={claimBusy} className="btn-primary">
                     {claimBusy ? "רושם…" : `אישור סופי — ${price} ₪`}
                   </button>
                 </>
