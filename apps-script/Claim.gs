@@ -106,24 +106,66 @@ function claim(body) {
       return fail_(cache, reqId, 'CAP_REACHED', { cap: cap, held: held });
     }
 
-    // Directionality: an ark-facing seat is only sellable together with its
-    // pair — either in this same request, or when the pair is already taken
-    // (by anyone). This is what physically prevents an all-ark-facing hall.
-    // Exemption: a seat RESERVED for this very phone is a historic position
-    // being confirmed, not a new ark-facing row being created.
-    for (var j = 0; j < seatNos.length; j++) {
-      var seat = bySeat[seatNos[j]].row;
-      var facing = seat[COLS.FACING - 1] === true || seat[COLS.FACING - 1] === 'TRUE';
-      if (!facing) continue;
-      var reservedForMe = seat[COLS.STATUS - 1] === STATUS.RESERVED &&
-        normPhone_(seat[COLS.CHAZAKA_PHONE - 1]) === phone;
-      if (reservedForMe) continue;
-      var pairNo = Number(seat[COLS.PAIR - 1]);
-      var pairInRequest = seatNos.indexOf(pairNo) !== -1;
-      var pairEntry = bySeat[pairNo];
-      var pairTaken = pairEntry && pairEntry.row[COLS.STATUS - 1] !== STATUS.FREE;
-      if (!pairInRequest && !pairTaken) {
-        return fail_(cache, reqId, 'PAIR_REQUIRED', { seatNo: seatNos[j], pairSeatNo: pairNo });
+    // Purchase shape. The rule, as the gabbai stated it: the second seat MUST
+    // be the one across the table from the first; a third must sit adjacent
+    // to that pair. This is what prevents a family buying a whole row of
+    // ark-facing seats with nobody opposite.
+    //
+    // Exemption: a selection consisting entirely of seats RESERVED for this
+    // phone is a historic position being confirmed — last year's arrangement
+    // predates the rule and is honored as-is.
+    var reservedForMe = function (row) {
+      return row[COLS.STATUS - 1] === STATUS.RESERVED &&
+        normPhone_(row[COLS.CHAZAKA_PHONE - 1]) === phone;
+    };
+    var allMine = seatNos.every(function (n) { return reservedForMe(bySeat[n].row); });
+
+    if (!allMine) {
+      if (seatNos.length === 1) {
+        // A lone ark-facing seat with a free opposite would start an
+        // unpaired facing row — unless it is this member's own hold.
+        var s0 = bySeat[seatNos[0]].row;
+        var facing0 = s0[COLS.FACING - 1] === true || s0[COLS.FACING - 1] === 'TRUE';
+        if (facing0 && !reservedForMe(s0)) {
+          var p0 = Number(s0[COLS.PAIR - 1]);
+          var p0taken = bySeat[p0] && bySeat[p0].row[COLS.STATUS - 1] !== STATUS.FREE &&
+            !reservedForMe(bySeat[p0].row);
+          if (!p0taken) {
+            return fail_(cache, reqId, 'PAIR_REQUIRED', { seatNo: seatNos[0], pairSeatNo: p0 });
+          }
+        }
+      } else {
+        // 2-3 seats: exactly one across-pair, plus (optionally) one adjacent.
+        var pairFound = null;
+        for (var a = 0; a < seatNos.length && !pairFound; a++) {
+          var pn = Number(bySeat[seatNos[a]].row[COLS.PAIR - 1]);
+          if (seatNos.indexOf(pn) !== -1) pairFound = [seatNos[a], pn];
+        }
+        if (!pairFound) {
+          var wantPair = Number(bySeat[seatNos[0]].row[COLS.PAIR - 1]);
+          return fail_(cache, reqId, 'SHAPE_PAIR_FIRST', {
+            seatNo: seatNos[0], pairSeatNo: wantPair,
+          });
+        }
+        var extras = seatNos.filter(function (n) {
+          return n !== pairFound[0] && n !== pairFound[1];
+        });
+        // Numbering ascends along a table side, so adjacency on the same
+        // table and side is exactly a seat-number difference of one.
+        var adjacentOk = extras.every(function (n) {
+          var er = bySeat[n].row;
+          return pairFound.some(function (pnum) {
+            var pr = bySeat[pnum].row;
+            return String(er[COLS.TABLE_ID - 1]) === String(pr[COLS.TABLE_ID - 1]) &&
+              String(er[COLS.SIDE - 1]) === String(pr[COLS.SIDE - 1]) &&
+              Math.abs(n - pnum) === 1;
+          });
+        });
+        if (!adjacentOk) {
+          return fail_(cache, reqId, 'SHAPE_ADJACENT', {
+            pair: pairFound, seatNo: extras[0],
+          });
+        }
       }
     }
 

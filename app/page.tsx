@@ -122,25 +122,73 @@ export default function WizardPage() {
     }
   };
 
-  /* ---------- step 3: seat selection ---------- */
+  /* ---------- step 3: seat selection ----------
+   * Purchase shape, mirroring the server rule: the second seat must be the
+   * one ACROSS the table from the first (auto-added when available), and a
+   * third must be adjacent to that pair. Confirming one's own reserved seats
+   * is exempt — last year's arrangement predates the rule.
+   */
+  const seatAvailable = (n: number | null): n is number => {
+    if (!n) return false;
+    const code = map?.status[String(n)] ?? "0";
+    return code === "0" || reservedSeats.includes(n);
+  };
+
   const toggleSeat = (sel: SeatSelection) => {
     setNotice("");
     setSelected((cur) => {
       if (cur.includes(sel.seatNo)) {
         return cur.filter((n) => n !== sel.seatNo && n !== sel.pairSeatNo);
       }
-      let next = [...cur, sel.seatNo];
-      if (sel.facing === "ark" && sel.pairSeatNo) {
-        const pairCode = map?.status[String(sel.pairSeatNo)] ?? "0";
-        const pairIsMine = reservedSeats.includes(sel.pairSeatNo);
-        if ((pairCode === "0" || pairIsMine) && !next.includes(sel.pairSeatNo)) {
-          next = [...next, sel.pairSeatNo];
-          setNotice(`מקום הפונה לארון נבחר יחד עם המקום שמולו — צורף גם מקום ${sel.pairSeatNo}.`);
-        }
-      }
-      if (next.length > 3) {
+      if (cur.length >= 3) {
         setNotice("עד 3 מקומות לרכישה אחת.");
         return cur;
+      }
+
+      const allMine = (list: number[]) => list.every((n) => reservedSeats.includes(n));
+
+      // First seat: take it, and bring its opposite along when it's free —
+      // the pair is the unit of purchase, whichever side was tapped first.
+      if (cur.length === 0) {
+        if (seatAvailable(sel.pairSeatNo) && !reservedSeats.includes(sel.seatNo)) {
+          setNotice(`המקום שמול צורף אוטומטית (מקום ${sel.pairSeatNo}) — כך שומרים על ישיבה משני צידי השולחן.`);
+          return [sel.seatNo, sel.pairSeatNo];
+        }
+        return [sel.seatNo];
+      }
+
+      // Additional seat: must keep the shape valid. Selections made entirely
+      // of one's own reserved seats are accepted as-is.
+      const next = [...cur, sel.seatNo];
+      if (allMine(next)) return next;
+
+      const hasPair = next.some(
+        (n) => sel.pairSeatNo === n || cur.some((c) => {
+          const cell = layout?.cells.find(
+            (x) => x.kind === "seat" && x.seatNo === c,
+          );
+          return cell?.kind === "seat" && cell.pairSeatNo !== null && next.includes(cell.pairSeatNo) && cell.seatNo !== cell.pairSeatNo;
+        }),
+      );
+      if (!hasPair && next.length === 2) {
+        const first = cur[0];
+        const firstCell = layout?.cells.find((x) => x.kind === "seat" && x.seatNo === first);
+        const wantedPair = firstCell?.kind === "seat" ? firstCell.pairSeatNo : null;
+        setNotice(
+          wantedPair && seatAvailable(wantedPair)
+            ? `המקום השני חייב להיות מול הראשון — מקום ${wantedPair}.`
+            : "המקום השני חייב להיות מול הראשון.",
+        );
+        return cur;
+      }
+      // Third seat: adjacency to the pair (same table side, neighbouring
+      // number). Numbering ascends along a side, so |Δ| = 1 is adjacency.
+      if (next.length === 3) {
+        const adjacent = cur.some((c) => Math.abs(sel.seatNo - c) === 1);
+        if (!adjacent) {
+          setNotice("המקום השלישי חייב להיות צמוד לזוג שבחרת.");
+          return cur;
+        }
       }
       return next;
     });
@@ -189,6 +237,12 @@ export default function WizardPage() {
           break;
         case "PAIR_REQUIRED":
           setNotice(`מקום הפונה לארון נמכר יחד עם מקום ${data.pairSeatNo}. סמן גם אותו.`);
+          break;
+        case "SHAPE_PAIR_FIRST":
+          setNotice(`המקום השני חייב להיות מול הראשון${data.pairSeatNo ? ` — מקום ${data.pairSeatNo}` : ""}.`);
+          break;
+        case "SHAPE_ADJACENT":
+          setNotice("המקום השלישי חייב להיות צמוד לזוג שבחרת.");
           break;
         case "CAP_REACHED":
           setNotice(`תקרה: עד ${data.cap} מקומות לטלפון.`);

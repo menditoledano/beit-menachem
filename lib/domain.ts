@@ -127,6 +127,8 @@ export type ClaimFailureCode =
   | "BUSY"
   | "CAP_REACHED"
   | "PAIR_REQUIRED"
+  | "SHAPE_PAIR_FIRST"
+  | "SHAPE_ADJACENT"
   | "ROUND_A_NO_CHAZAKA"
   | "ROUND_A_NOT_YOURS"
   | "TOO_FAST"
