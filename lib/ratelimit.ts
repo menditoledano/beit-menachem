@@ -33,13 +33,17 @@ export function clientIp(req: Request): string {
 
 export function checkOrigin(req: Request): boolean {
   const origin = req.headers.get("origin");
-  if (!origin) return true; // same-origin form posts and server-side calls
-  const allowed = (process.env.ALLOWED_HOSTS ?? "")
-    .split(",")
-    .map((h) => h.trim())
-    .filter(Boolean);
+  if (!origin) return true; // server-side calls and older same-origin posts
   try {
-    return allowed.includes(new URL(origin).host);
+    const originHost = new URL(origin).host;
+    // Self-origin is always fine — this keeps the check working on any
+    // deployment URL (preview, temporary, custom domain) without config.
+    if (originHost === req.headers.get("host")) return true;
+    const allowed = (process.env.ALLOWED_HOSTS ?? "")
+      .split(",")
+      .map((h) => h.trim())
+      .filter(Boolean);
+    return allowed.includes(originHost);
   } catch {
     return false;
   }
