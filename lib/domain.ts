@@ -78,6 +78,8 @@ export interface SeatMapPayload {
   status: Record<string, string>;
   /** seatNo -> public display name. Phone and email are never sent here. */
   holders: Record<string, string>;
+  /** Shul contact for the Round A WhatsApp fallback, wa.me format. */
+  gabbaiPhone: string;
   serverTime: string;
 }
 

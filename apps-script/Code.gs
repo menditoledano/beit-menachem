@@ -66,6 +66,10 @@ function doPost(e) {
         return json_({ ok: true, result: setConfigValue_(body.key, body.value) });
       case 'gabbai':
         return json_(gabbaiAction(body));
+      case 'runChazakaMatching':
+        return json_({ ok: true, result: runChazakaMatching(body) });
+      case 'approveAutoChazaka':
+        return json_({ ok: true, result: approveAutoChazaka() });
       case 'debugSourceTabs':
         return json_({
           ok: true,

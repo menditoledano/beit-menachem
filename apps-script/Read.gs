@@ -45,6 +45,8 @@ function seatmap() {
     mode: String(cfg.MODE),
     status: status,
     holders: holders,
+    // The shul's public contact number for the Round A fallback link.
+    gabbaiPhone: String(cfg.GABBAI_PHONE || ''),
     serverTime: new Date().toISOString(),
   };
   cache.put('seatmap', JSON.stringify(payload), 4);

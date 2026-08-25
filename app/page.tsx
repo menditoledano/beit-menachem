@@ -13,6 +13,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { CompiledLayout, SeatMapPayload } from "@/lib/domain";
 import { SeatMap, Legend, type SeatSelection } from "@/components/SeatMap";
 import { ClaimSheet } from "@/components/ClaimSheet";
+import { RoundAGate } from "@/components/RoundAGate";
 
 const POLL_MS = 4_000;
 
@@ -21,6 +22,8 @@ export default function HomePage() {
   const [map, setMap] = useState<SeatMapPayload | null>(null);
   const [selected, setSelected] = useState<number[]>([]);
   const [notice, setNotice] = useState("");
+  /** Set once the Round A gate verifies a chazaka holder; prefills the claim form. */
+  const [verified, setVerified] = useState<{ name: string; phone: string } | null>(null);
   const layoutVersionRef = useRef("");
 
   const fetchLayout = useCallback(async () => {
@@ -103,10 +106,14 @@ export default function HomePage() {
             : "המכירה עדיין לא נפתחה. המפה לצפייה בלבד."}
         </div>
       )}
-      {map?.phase === "A" && mode === "OPEN" && (
-        <div className="rounded border border-blue-300 bg-blue-50 p-2 text-sm">
-          סבב ראשון — בעלי חזקה משנה שעברה בלבד. הסבב הפתוח ייפתח בהמשך.
-        </div>
+      {map?.phase === "A" && mode === "OPEN" && !verified && (
+        <RoundAGate
+          gabbaiPhone={map.gabbaiPhone || ""}
+          onVerified={(name, phone) => {
+            setVerified({ name, phone });
+            setNotice(`שלום ${name} — בחר מקום במפה.`);
+          }}
+        />
       )}
       {notice && <div className="rounded border bg-white p-2 text-sm">{notice}</div>}
 
@@ -120,11 +127,12 @@ export default function HomePage() {
         המפה מתעדכנת אוטומטית. שם מוצג על מקום תפוס; פרטי קשר אינם מוצגים לציבור.
       </p>
 
-      {mode === "OPEN" && (
+      {mode === "OPEN" && (map?.phase !== "A" || verified) && (
         <ClaimSheet
           selected={selected}
           onDone={onClaimed}
           onClear={() => setSelected([])}
+          prefill={verified}
         />
       )}
     </main>

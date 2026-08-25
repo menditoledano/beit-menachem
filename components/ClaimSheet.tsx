@@ -15,13 +15,16 @@ export function ClaimSheet({
   selected,
   onDone,
   onClear,
+  prefill,
 }: {
   selected: number[];
   onDone: (claimed: number[]) => void;
   onClear: () => void;
+  /** Identity carried over from the Round A gate; locks name+phone together. */
+  prefill?: { name: string; phone: string } | null;
 }) {
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [name, setName] = useState(prefill?.name ?? "");
+  const [phone, setPhone] = useState(prefill?.phone ?? "");
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
