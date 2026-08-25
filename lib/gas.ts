@@ -66,8 +66,38 @@ export async function gasPost<T>(action: string, payload: object = {}): Promise<
   }
 }
 
+/**
+ * Admin auth with brute-force lockout. The token is short enough to memorise,
+ * so the lockout carries the security weight: five wrong attempts from one IP
+ * lock that IP out for fifteen minutes, which caps guessing at a rate that
+ * makes a six-digit space unsearchable in practice.
+ */
+const failedAttempts = new Map<string, { count: number; lockedUntil: number }>();
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_MS = 15 * 60 * 1000;
+
 export function requireAdmin(req: Request): boolean {
-  const token = req.headers.get("x-admin-token");
   const expected = process.env.ADMIN_TOKEN;
-  return Boolean(expected && token === expected);
+  if (!expected) return false;
+
+  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
+  const rec = failedAttempts.get(ip);
+  const now = Date.now();
+  if (rec && rec.lockedUntil > now) return false;
+
+  const token = req.headers.get("x-admin-token");
+  if (token === expected) {
+    failedAttempts.delete(ip);
+    return true;
+  }
+  // Only attempts that actually presented a token count toward lockout —
+  // a missing header is a UI state, not a guess.
+  if (token) {
+    const count = (rec?.count ?? 0) + 1;
+    failedAttempts.set(ip, {
+      count,
+      lockedUntil: count >= MAX_ATTEMPTS ? now + LOCKOUT_MS : 0,
+    });
+  }
+  return false;
 }
