@@ -34,6 +34,7 @@ export function SeatMap({
   myReservedSeats,
   focusSeat,
   adminMode,
+  fitOnMount,
   onToggleSeat,
 }: {
   layout: CompiledLayout;
@@ -46,6 +47,8 @@ export function SeatMap({
   focusSeat?: number;
   /** Gabbai console: every seat is clickable regardless of status. */
   adminMode?: boolean;
+  /** Open showing the WHOLE hall (fit-to-width); zoom in from there. */
+  fitOnMount?: boolean;
   onToggleSeat: (sel: SeatSelection) => void;
 }) {
   // Column widths are computed PER COLUMN from actual seat occupancy, not
@@ -95,7 +98,7 @@ export function SeatMap({
    */
   const [zoom, setZoom] = useState(1);
   const zoomRef = useRef(1);
-  const clampZoom = (z: number) => Math.min(1.4, Math.max(0.3, z));
+  const clampZoom = (z: number) => Math.min(1.4, Math.max(0.24, z));
   const applyZoom = useCallback((z: number) => {
     const c = clampZoom(z);
     zoomRef.current = c;
@@ -111,6 +114,15 @@ export function SeatMap({
     const natural = inner.scrollWidth / zoomRef.current || 1;
     applyZoom((el.clientWidth - 8) / natural);
   }, [applyZoom]);
+
+  // Opening view: the whole hall at once — orientation first, detail on
+  // demand. Runs once, after the grid has painted its natural width.
+  const didFitRef = useRef(false);
+  useEffect(() => {
+    if (!fitOnMount || didFitRef.current) return;
+    didFitRef.current = true;
+    requestAnimationFrame(() => fitToWidth());
+  }, [fitOnMount, fitToWidth, layout]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -181,7 +193,7 @@ export function SeatMap({
       <div className="scroll-fade">
       <div
         ref={scrollRef}
-        className="max-h-[68vh] overflow-auto rounded-xl"
+        className="max-h-[74vh] overflow-auto rounded-xl"
         style={{ overscrollBehavior: "contain" }}
       >
         <div

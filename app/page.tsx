@@ -366,7 +366,7 @@ export default function WizardPage() {
       )}
       {mode !== "OPEN" && step < 4 && layout && (
         <div className="card step-in p-3">
-          <SeatMap layout={layout} map={map} selected={[]} onToggleSeat={() => {}} />
+          <SeatMap layout={layout} map={map} selected={[]} fitOnMount onToggleSeat={() => {}} />
         </div>
       )}
 
@@ -574,7 +574,7 @@ export default function WizardPage() {
             </div>
           )}
           {notice && <div className="pill pill-info" aria-live="polite">{notice}</div>}
-          <div className="card p-3">
+          <div className="card p-1.5">
             {layout ? (
               <SeatMap
                 layout={layout}
@@ -583,6 +583,7 @@ export default function WizardPage() {
                 myPhone={normalizePhone(phone)}
                 myReservedSeats={reservedSeats}
                 focusSeat={reservedSeats[0] ?? selected[0]}
+                fitOnMount
                 onToggleSeat={toggleSeat}
               />
             ) : (
@@ -590,7 +591,7 @@ export default function WizardPage() {
             )}
           </div>
 
-          <div className="safe-bottom sticky bottom-0 z-10 border-t border-black/5 bg-white/80 px-4 pt-3 backdrop-blur-xl">
+          <div className="safe-bottom sticky bottom-0 z-10 border-t border-black/5 bg-white/80 px-4 pt-2 backdrop-blur-xl">
             <div className="mx-auto flex max-w-lg flex-col gap-2">
               {selected.length === 0 ? (
                 /* Nothing picked yet: a hint line, not a dead button. */
@@ -652,7 +653,7 @@ export default function WizardPage() {
           </p>
           {layout && (
             <div className="w-full">
-              <SeatMap layout={layout} map={map} selected={claimedSeats} onToggleSeat={() => {}} />
+              <SeatMap layout={layout} map={map} selected={claimedSeats} fitOnMount onToggleSeat={() => {}} />
             </div>
           )}
         </section>
