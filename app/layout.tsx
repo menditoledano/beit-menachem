@@ -12,13 +12,14 @@ export const metadata: Metadata = {
   description: 'בחירת מקומות לשנת תשפ"ז בבית הכנסת חב"ד "בית מנחם", גני איילון',
 };
 
-// The seat map is a wide grid the user scrolls horizontally. Locking the zoom
-// keeps a two-finger pan from turning into an accidental page zoom mid-tap.
+// Page zoom stays ENABLED: older users enlarge text with pinch and browser
+// zoom, and blocking that is an accessibility failure. The map has its own
+// pinch handler scoped to its container, so the two do not fight.
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  themeColor: "#0f3d2e",
+  maximumScale: 5,
+  themeColor: "#9a1b33",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -12,8 +12,8 @@
   /* Seat states. Kept as variables so the map, the legend and the printable
      export cannot drift apart. */
   --seat-free: #2f855a;
-  --seat-taken: #a8a29e;
-  --seat-pending: #b7791f;
+  --seat-taken: #57534e;
+  --seat-pending: #92400e;
   --seat-blocked: #57534e;
   /* "Yours" is loud on purpose: bright gold, unmistakable against the blue
      of other people's holds. Text on it must be dark, not white. */
@@ -44,6 +44,8 @@ body {
     radial-gradient(1200px 500px at 50% -10%, #fff 0%, var(--background) 70%);
   color: var(--foreground);
   font-family: var(--font-heebo), system-ui, sans-serif;
+  /* Older eyes: 17px base instead of the browser's 16. */
+  font-size: 17px;
 }
 
 /* Seat numbers are compared far more often than they are read as prose. */
@@ -68,7 +70,7 @@ body {
   justify-content: center;
   gap: 0.5rem;
   width: 100%;
-  min-height: 3rem;
+  min-height: 3.25rem;
   border-radius: 1rem;
   background: var(--brand-maroon);
   color: #fff;
@@ -97,7 +99,7 @@ body {
 
 .field {
   width: 100%;
-  min-height: 3rem;
+  min-height: 3.25rem;
   padding: 0 1rem;
   border-radius: 1rem;
   background: #f4f2ee;
@@ -155,4 +157,12 @@ body {
 :focus-visible {
   outline: 2px solid var(--brand-maroon);
   outline-offset: 2px;
+}
+
+
+/* Vestibular safety: no pulsing or gliding for users who asked motion off. */
+@media (prefers-reduced-motion: reduce) {
+  .step-in { animation: none; }
+  .animate-pulse { animation: none; }
+  .btn-primary, .field, .btn-ghost { transition: none; }
 }

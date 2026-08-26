@@ -175,7 +175,7 @@ export function SeatMap({
           ["bg-seat-taken", "תפוס"],
           ["bg-seat-mine", "שלך"],
         ] as Array<[string, string]>).map(([cls, label]) => (
-          <span key={label} className="flex items-center gap-1 text-[11px] font-semibold">
+          <span key={label} className="flex items-center gap-1 text-[12px] font-semibold">
             <span className={`inline-block h-3.5 w-3.5 rounded-md ${cls}`} />
             {label}
           </span>
@@ -184,11 +184,11 @@ export function SeatMap({
       {/* zoom controls: pinch works everywhere, these serve mouse + clarity */}
       <div className="absolute left-2 top-2 z-10 flex flex-col gap-1">
         <button onClick={() => applyZoom(zoom * 1.2)} aria-label="הגדל"
-          className="h-9 w-9 rounded-full bg-white/90 text-lg font-bold shadow backdrop-blur">＋</button>
+          className="h-11 w-11 rounded-full bg-white/90 text-2xl font-bold shadow backdrop-blur">＋</button>
         <button onClick={() => applyZoom(zoom / 1.2)} aria-label="הקטן"
-          className="h-9 w-9 rounded-full bg-white/90 text-lg font-bold shadow backdrop-blur">－</button>
+          className="h-11 w-11 rounded-full bg-white/90 text-2xl font-bold shadow backdrop-blur">－</button>
         <button onClick={fitToWidth} aria-label="הצג את כל האולם"
-          className="h-9 rounded-full bg-white/90 px-2 text-[11px] font-bold shadow backdrop-blur">הכל</button>
+          className="h-11 rounded-full bg-white/90 px-3 text-[13px] font-bold shadow backdrop-blur">הכל</button>
       </div>
       <div className="scroll-fade">
       <div
@@ -264,9 +264,9 @@ export function SeatMap({
               title={label}
               aria-label={label}
             >
-              <span className="text-[14px] font-bold leading-none">{cell.seatNo}</span>
+              <span className="text-[15px] font-bold leading-none">{cell.seatNo}</span>
               {(holder || isMyHold) && (
-                <span className="max-w-[54px] truncate px-0.5 text-[10px] leading-tight">
+                <span className="max-w-[54px] truncate px-0.5 text-[11px] leading-tight">
                   {isMyHold ? "שלך ✓" : holder}
                 </span>
               )}
