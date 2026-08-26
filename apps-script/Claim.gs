@@ -121,20 +121,10 @@ function claim(body) {
     var allMine = seatNos.every(function (n) { return reservedForMe(bySeat[n].row); });
 
     if (!allMine) {
-      if (seatNos.length === 1) {
-        // A lone ark-facing seat with a free opposite would start an
-        // unpaired facing row — unless it is this member's own hold.
-        var s0 = bySeat[seatNos[0]].row;
-        var facing0 = s0[COLS.FACING - 1] === true || s0[COLS.FACING - 1] === 'TRUE';
-        if (facing0 && !reservedForMe(s0)) {
-          var p0 = Number(s0[COLS.PAIR - 1]);
-          var p0taken = bySeat[p0] && bySeat[p0].row[COLS.STATUS - 1] !== STATUS.FREE &&
-            !reservedForMe(bySeat[p0].row);
-          if (!p0taken) {
-            return fail_(cache, reqId, 'PAIR_REQUIRED', { seatNo: seatNos[0], pairSeatNo: p0 });
-          }
-        }
-      } else {
+      // A single seat is always a valid purchase, either side of the table —
+      // the gabbai's rule constrains only MULTI-seat purchases, so one family
+      // cannot take a same-side row while leaving nobody opposite.
+      if (seatNos.length > 1) {
         // 2-3 seats: exactly one across-pair, plus (optionally) one adjacent.
         var pairFound = null;
         for (var a = 0; a < seatNos.length && !pairFound; a++) {

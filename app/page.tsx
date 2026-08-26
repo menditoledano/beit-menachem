@@ -154,12 +154,11 @@ export default function WizardPage() {
 
       const allMine = (list: number[]) => list.every((n) => reservedSeats.includes(n));
 
-      // First seat: take it, and bring its opposite along when it's free —
-      // the pair is the unit of purchase, whichever side was tapped first.
+      // First seat: exactly one. Adding more is the buyer's choice — the
+      // pair is suggested, never imposed.
       if (cur.length === 0) {
         if (seatAvailable(sel.pairSeatNo) && !reservedSeats.includes(sel.seatNo)) {
-          setNotice(`המקום שמול צורף אוטומטית (מקום ${sel.pairSeatNo}) — כך שומרים על ישיבה משני צידי השולחן.`);
-          return [sel.seatNo, sel.pairSeatNo];
+          setNotice(`רוצה גם את המקום שמול? לחץ על מקום ${sel.pairSeatNo}.`);
         }
         return [sel.seatNo];
       }
