@@ -81,15 +81,21 @@ function publishLayout(payload) {
   var compiled = payload.compiled;
   if (!layout || !seats || !seats.length || !compiled) throw new Error('חסר מידע לפרסום');
 
-  // Refuse to republish once anyone holds a seat: renumbering under a live
-  // sale would detach every claim from its chair.
+  // Refuse to republish once anyone holds a seat — taken, pending OR
+  // reserved: renumbering under live holds would detach every claim and wipe
+  // every chazaka from its chair. The gabbai releases explicitly first
+  // (releaseReservedSeats) and reseeds after.
   var seatSh = sheet_(TAB.SEATS);
   var lastRow = seatSh.getLastRow();
   if (lastRow > 1) {
     var statuses = seatSh.getRange(2, 7, lastRow - 1, 1).getValues();
     for (var i = 0; i < statuses.length; i++) {
-      if (statuses[i][0] === STATUS.TAKEN || statuses[i][0] === STATUS.PENDING) {
+      var st = statuses[i][0];
+      if (st === STATUS.TAKEN || st === STATUS.PENDING) {
         throw new Error('יש מקומות תפוסים — אי אפשר לפרסם פריסה חדשה. שחרר קודם או פתח שנה חדשה.');
+      }
+      if (st === STATUS.RESERVED) {
+        throw new Error('יש חזקות זרועות על המפה — פרסום ימחק אותן. שחרר חזקות (מסך גבאי) לפני פרסום, וזרע מחדש אחריו.');
       }
     }
   }
