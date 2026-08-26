@@ -462,9 +462,9 @@ export default function WizardPage() {
             </p>
             <div className="mt-3 flex flex-col gap-2">
               <input value={aliyah1} onChange={(e) => setAliyah1(e.target.value)}
-                placeholder="תאריך עברי ראשון — למשל: כא סיוון" className="field bg-white" />
+                placeholder="תאריך עברי ראשון — למשל: כא סיוון" aria-label="תאריך עלייה ראשון" className="field bg-white" />
               <input value={aliyah2} onChange={(e) => setAliyah2(e.target.value)}
-                placeholder="תאריך עברי שני — למשל: ו תשרי" className="field bg-white" />
+                placeholder="תאריך עברי שני — למשל: ו תשרי" aria-label="תאריך עלייה שני" className="field bg-white" />
             </div>
           </div>
           <button
@@ -517,7 +517,7 @@ export default function WizardPage() {
             )}
           </div>
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)}
-            placeholder="הארות / הערות יתקבלו בברכה"
+            placeholder="הארות / הערות יתקבלו בברכה" aria-label="הערות"
             className="field resize-none py-3" rows={2} />
           <button
             onClick={() => {
