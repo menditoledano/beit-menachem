@@ -141,6 +141,23 @@ export default function LayoutEditorPage() {
   if (!layout) return <main className="p-8">{busy || "…"}</main>;
 
   const selTable = sel?.kind === "table" ? layout.tables.find((t) => t.id === sel.id) : null;
+  const selElement = sel?.kind === "element" ? layout.elements.find((e) => e.id === sel.id) : null;
+
+  const resizeElement = (dRow: number, dCol: number) => {
+    if (!selElement) return;
+    setLayout((l) => l && {
+      ...l,
+      elements: l.elements.map((e) =>
+        e.id === selElement.id
+          ? {
+              ...e,
+              rowSpan: Math.max(1, e.rowSpan + dRow),
+              colSpan: Math.max(1, e.colSpan + dCol),
+            }
+          : e,
+      ),
+    });
+  };
 
   return (
     <main className="flex flex-col gap-4 p-4">
@@ -187,6 +204,27 @@ export default function LayoutEditorPage() {
           <button onClick={removeSelected} className="rounded border border-red-400 px-2 text-red-700">
             מחק שולחן
           </button>
+        </div>
+      )}
+
+      {selElement && (
+        <div className="flex flex-wrap items-center gap-2 rounded border bg-white p-2 text-sm">
+          <b>{selElement.label}</b>
+          <span className="opacity-60">הזזה:</span>
+          <button onClick={() => moveSel(-1, 0)} className="rounded border px-2">↑</button>
+          <button onClick={() => moveSel(1, 0)} className="rounded border px-2">↓</button>
+          {/* RTL: raising the column index moves the element toward the ark (left). */}
+          <button onClick={() => moveSel(0, 1)} className="rounded border px-2">←</button>
+          <button onClick={() => moveSel(0, -1)} className="rounded border px-2">→</button>
+          <span className="mx-2 opacity-60">גובה:</span>
+          <button onClick={() => resizeElement(-1, 0)} className="rounded border px-2">−</button>
+          <span className="tnum">{selElement.rowSpan}</span>
+          <button onClick={() => resizeElement(1, 0)} className="rounded border px-2">+</button>
+          <span className="mx-2 opacity-60">רוחב:</span>
+          <button onClick={() => resizeElement(0, -1)} className="rounded border px-2">−</button>
+          <span className="tnum">{selElement.colSpan}</span>
+          <button onClick={() => resizeElement(0, 1)} className="rounded border px-2">+</button>
+          <button onClick={() => setSel(null)} className="rounded border px-2 opacity-60">סגור</button>
         </div>
       )}
 
