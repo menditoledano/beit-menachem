@@ -78,6 +78,8 @@ function doPost(e) {
         return json_({ ok: true, result: approveAutoChazaka() });
       case 'resolveChazakaV2':
         return json_({ ok: true, result: resolveChazakaV2() });
+      case 'fillChazakaFromExternal':
+        return json_({ ok: true, result: fillChazakaFromExternal(body) });
       case 'seedChazakaSeats':
         return json_({ ok: true, result: seedChazakaSeats(body) });
       case 'releaseReservedSeats':

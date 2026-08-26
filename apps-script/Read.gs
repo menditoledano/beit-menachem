@@ -79,7 +79,19 @@ function lookup(body) {
       return { memberId: String(r[0]), name: (String(r[1]) + ' ' + String(r[3])).trim() };
     });
 
-  if (!matches.length) return { kind: 'UNKNOWN' };
+  if (!matches.length) {
+    // Not in the member roster — but a reservation can still exist for this
+    // phone, backfilled from external documents. The hold itself is the
+    // identity; without this branch those holders are locked out of the very
+    // seats reserved for them.
+    var held = reservedSeatsWithName_(phone);
+    if (held.seats.length) {
+      return {
+        kind: 'CHAZAKA', memberId: '', name: held.name, reservedSeats: held.seats,
+      };
+    }
+    return { kind: 'UNKNOWN' };
+  }
   // Families share a number; let the caller ask which household member this is.
   if (matches.length > 1) return { kind: 'MULTI', candidates: matches };
 
@@ -95,14 +107,20 @@ function lookup(body) {
 }
 
 function reservedSeatsFor_(phone) {
+  return reservedSeatsWithName_(phone).seats;
+}
+
+function reservedSeatsWithName_(phone) {
   var sh = ss_().getSheetByName(TAB.SEATS);
-  if (!sh || sh.getLastRow() < 2) return [];
+  if (!sh || sh.getLastRow() < 2) return { seats: [], name: '' };
   var out = [];
+  var name = '';
   sh.getRange(2, 1, sh.getLastRow() - 1, SEAT_WIDTH).getValues().forEach(function (r) {
     if (r[COLS.STATUS - 1] === STATUS.RESERVED &&
         normPhone_(r[COLS.CHAZAKA_PHONE - 1]) === phone) {
       out.push(Number(r[COLS.SEAT_NO - 1]));
+      if (!name) name = String(r[COLS.CHAZAKA_NAME - 1] || '');
     }
   });
-  return out;
+  return { seats: out, name: name };
 }

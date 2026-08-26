@@ -13,6 +13,9 @@ export const maxDuration = 30;
  * three.
  */
 const seenPhones = new Map<string, Set<string>>();
+// The distinct-phone window resets hourly: on sale night the whole community
+// shares the synagogue's NAT IP, so a lifetime cap would lock everyone out.
+let seenPhonesResetAt = Date.now();
 
 export async function POST(req: Request) {
   if (!checkOrigin(req)) {
@@ -27,10 +30,14 @@ export async function POST(req: Request) {
     const body = await req.json();
     const phone = String(body.phone ?? "");
 
+    if (Date.now() - seenPhonesResetAt > 60 * 60 * 1000) {
+      seenPhones.clear();
+      seenPhonesResetAt = Date.now();
+    }
     const set = seenPhones.get(ip) ?? new Set<string>();
     set.add(phone);
     seenPhones.set(ip, set);
-    if (set.size > 10) {
+    if (set.size > 60) {
       // Past the distinct-phone cap this IP only ever learns "unknown".
       return Response.json({ ok: true, result: { kind: "UNKNOWN" } });
     }

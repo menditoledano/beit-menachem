@@ -220,6 +220,48 @@ function seedChazakaSeats(body) {
 }
 
 /**
+ * Feeds phones recovered from external documents into _Chazaka. Each entry
+ * updates the row whose sourceRaw matches (tight-key comparison), records the
+ * source document as the match method, and stamps approval — the gabbai
+ * explicitly ordered this backfill, so the rows arrive live.
+ * Entries that match no open row are reported back, not silently dropped.
+ */
+function fillChazakaFromExternal(body) {
+  var entries = body.entries || [];
+  if (!entries.length) throw new Error('אין רשומות');
+  var sh = sheet_(TAB.CHAZAKA);
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) throw new Error('_Chazaka ריק');
+  var rows = sh.getRange(2, 1, lastRow - 1, CHAZAKA_HEADERS.length).getValues();
+
+  var byKey = {};
+  rows.forEach(function (r, i) { byKey[keyTight_(String(r[3]))] = i; });
+
+  var updated = 0, unmatched = [], skippedHasPhone = 0;
+  entries.forEach(function (e) {
+    var idx = byKey[keyTight_(String(e.target || ''))];
+    if (idx === undefined) { unmatched.push(String(e.target)); return; }
+    var phone = normPhone_(e.phone);
+    if (!phone) { unmatched.push(String(e.target) + ' (טלפון פסול)'); return; }
+    // Never overwrite a phone that is already live — human data wins.
+    if (normPhone_(rows[idx][2])) { skippedHasPhone++; return; }
+    sh.getRange(idx + 2, 2, 1, 2).setValues([[String(e.foundName || e.target), phone]]);
+    sh.getRange(idx + 2, 5, 1, 3).setValues([[
+      'external:' + String(e.source || '').slice(0, 40), 0.8, 'AUTO',
+    ]]);
+    sh.getRange(idx + 2, 8).setValue(new Date());
+    updated++;
+  });
+
+  SpreadsheetApp.flush();
+  CacheService.getScriptCache().remove('chazakaPhones');
+  var summary = 'updated=' + updated + ' alreadyHadPhone=' + skippedHasPhone +
+    (unmatched.length ? ' unmatched=' + unmatched.join(';') : '');
+  logAction_('CHAZAKA_EXTERNAL_FILL', '', '', '', '', 'ok', summary, '');
+  return summary;
+}
+
+/**
  * Converts every unexercised reservation back to free. The explicit gabbai
  * action that opens Round B — deliberately not a timer, so a hold never
  * evaporates overnight without a human deciding it.
