@@ -365,7 +365,10 @@ export default function WizardPage() {
         </div>
       )}
       {mode !== "OPEN" && step < 4 && layout && (
-        <div className="card step-in p-3">
+        <div
+          className="card step-in self-center p-3"
+          style={{ width: "min(100vw - 1.5rem, 1100px)" }}
+        >
           <SeatMap layout={layout} map={map} selected={[]} fitOnMount onToggleSeat={() => {}} />
         </div>
       )}
@@ -653,7 +656,9 @@ export default function WizardPage() {
           </p>
           {layout && (
             <div className="w-full">
-              <SeatMap layout={layout} map={map} selected={claimedSeats} fitOnMount onToggleSeat={() => {}} />
+              <div className="self-center" style={{ width: "min(100vw - 3rem, 1100px)" }}>
+                <SeatMap layout={layout} map={map} selected={claimedSeats} fitOnMount onToggleSeat={() => {}} />
+              </div>
             </div>
           )}
         </section>
