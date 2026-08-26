@@ -15,7 +15,9 @@
   --seat-taken: #a8a29e;
   --seat-pending: #b7791f;
   --seat-blocked: #57534e;
-  --seat-mine: #2b6cb0;
+  /* "Yours" is loud on purpose: bright gold, unmistakable against the blue
+     of other people's holds. Text on it must be dark, not white. */
+  --seat-mine: #fbbf24;
   --seat-reserved: #0369a1;
   /* Fixtures (ark, bimah…) render in the brand maroon. */
   --ark: var(--brand-maroon);

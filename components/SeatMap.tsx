@@ -212,18 +212,18 @@ export function SeatMap({
           const clickable = adminMode || code === "0" || isMyHold || isSelected;
 
           const cls = isSelected
-            ? "bg-seat-mine ring-2 ring-black shadow-md"
+            ? "bg-seat-mine text-amber-950 ring-2 ring-amber-600 shadow-md"
             : isMyHold
-              ? "bg-seat-mine/80 ring-2 ring-seat-mine animate-pulse"
+              ? "bg-seat-mine text-amber-950 ring-2 ring-amber-500 animate-pulse"
               : code === "0"
-                ? "bg-seat-free hover:brightness-110"
+                ? "bg-seat-free text-white hover:brightness-110"
                 : code === "4"
-                  ? "bg-seat-reserved"
+                  ? "bg-seat-reserved text-white"
                   : code === "2"
-                    ? "bg-seat-pending"
+                    ? "bg-seat-pending text-white"
                     : code === "3"
-                      ? "bg-seat-blocked"
-                      : "bg-seat-taken";
+                      ? "bg-seat-blocked text-white"
+                      : "bg-seat-taken text-white";
 
           const label =
             code === "0"
@@ -246,7 +246,7 @@ export function SeatMap({
                 })
               }
               data-seat={cell.seatNo}
-              className={`tnum flex flex-col items-center justify-center gap-0.5 rounded-lg text-white transition-transform active:scale-95 disabled:cursor-not-allowed ${cls}`}
+              className={`tnum flex flex-col items-center justify-center gap-0.5 rounded-lg transition-transform active:scale-95 disabled:cursor-not-allowed ${cls}`}
               style={{ gridRow: cell.row, gridColumn: cell.col, touchAction: "manipulation" }}
               /* title = desktop tooltip; the same text is the aria-label for readers */
               title={label}
