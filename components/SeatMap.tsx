@@ -33,6 +33,7 @@ export function SeatMap({
   myPhone,
   myReservedSeats,
   focusSeat,
+  adminMode,
   onToggleSeat,
 }: {
   layout: CompiledLayout;
@@ -43,6 +44,8 @@ export function SeatMap({
   myReservedSeats?: number[];
   /** Seat to bring into view on first render — the user's own hold, usually. */
   focusSeat?: number;
+  /** Gabbai console: every seat is clickable regardless of status. */
+  adminMode?: boolean;
   onToggleSeat: (sel: SeatSelection) => void;
 }) {
   // Column widths are computed PER COLUMN from actual seat occupancy, not
@@ -206,7 +209,7 @@ export function SeatMap({
           const holder = map?.holders[String(cell.seatNo)];
           const isSelected = selected.includes(cell.seatNo);
           const isMyHold = mine.has(cell.seatNo);
-          const clickable = code === "0" || isMyHold || isSelected;
+          const clickable = adminMode || code === "0" || isMyHold || isSelected;
 
           const cls = isSelected
             ? "bg-seat-mine ring-2 ring-black shadow-md"

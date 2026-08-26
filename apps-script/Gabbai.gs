@@ -5,6 +5,60 @@
  * type into _Seats mid-rush.
  */
 
+/**
+ * Full per-seat detail for the admin panel — the one read that may include
+ * phone, email and paid state. Never routed to the public API.
+ */
+function seatDetails(body) {
+  var wanted = (body.seatNos || []).map(Number);
+  if (!wanted.length) return { seats: [] };
+  var sh = sheet_(TAB.SEATS);
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return { seats: [] };
+  var rows = sh.getRange(2, 1, lastRow - 1, SEAT_WIDTH).getValues();
+  var out = [];
+  rows.forEach(function (r) {
+    var n = Number(r[COLS.SEAT_NO - 1]);
+    if (wanted.indexOf(n) === -1) return;
+    out.push({
+      seatNo: n,
+      status: String(r[COLS.STATUS - 1]),
+      holderName: String(r[COLS.NAME - 1] || ''),
+      holderPhone: String(r[COLS.PHONE - 1] || ''),
+      holderEmail: String(r[COLS.EMAIL - 1] || ''),
+      paid: r[COLS.PAID - 1] === true || r[COLS.PAID - 1] === 'TRUE',
+      chazakaName: String(r[COLS.CHAZAKA_NAME - 1] || ''),
+      chazakaPhone: String(r[COLS.CHAZAKA_PHONE - 1] || ''),
+      note: String(r[COLS.NOTE - 1] || ''),
+    });
+  });
+  return { seats: out };
+}
+
+/** Last audit-log rows, newest first, for the console's activity feed. */
+function recentLog(body) {
+  var limit = Math.min(30, Number((body && body.limit) || 15));
+  var sh = sheet_(TAB.LOG);
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return { rows: [] };
+  var count = Math.min(limit, lastRow - 1);
+  var vals = sh.getRange(lastRow - count + 1, 1, count, LOG_HEADERS.length).getValues();
+  return {
+    rows: vals.reverse().map(function (r) {
+      return {
+        time: r[0] instanceof Date
+          ? Utilities.formatDate(r[0], 'Asia/Jerusalem', 'dd/MM HH:mm')
+          : String(r[0]),
+        action: String(r[1]),
+        seats: String(r[2]),
+        name: String(r[3]),
+        result: String(r[6]),
+        detail: String(r[7] || '').slice(0, 80),
+      };
+    }),
+  };
+}
+
 function setConfigValue_(key, value) {
   var allowed = Object.keys(CONFIG_DEFAULTS);
   if (allowed.indexOf(String(key)) === -1) throw new Error('מפתח לא מוכר: ' + key);
@@ -52,6 +106,9 @@ function gabbaiAction(body) {
         case 'release':
           sh.getRange(rowIdx, COLS.STATUS, 1, 7)
             .setValues([[STATUS.FREE, '', '', '', '', false, '']]);
+          // A released reservation must not leave a stale chazaka claim on
+          // the row — the next seeding run re-creates real ones.
+          sh.getRange(rowIdx, COLS.CHAZAKA_NAME, 1, 2).setValues([['', '']]);
           touched.push(n);
           break;
         case 'markPaid':
