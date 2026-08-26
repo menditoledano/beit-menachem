@@ -35,12 +35,12 @@ export default function WizardPage() {
   const [name, setName] = useState("");
   const [reservedSeats, setReservedSeats] = useState<number[]>([]);
   /**
-   * A returning holder's declared intent: keep last year's seats (fast lane,
-   * skips the map entirely) or switch (passes an explicit release warning
-   * first). Null until they choose.
+   * The keep-or-switch decision lives on the MAP screen: a holder arrives
+   * with their seats preselected; tapping a different seat raises the
+   * release warning once, and confirming it acknowledges the switch.
    */
-  const [intent, setIntent] = useState<null | "keep" | "switch">(null);
-  const [switchWarning, setSwitchWarning] = useState(false);
+  const [switchAck, setSwitchAck] = useState(false);
+  const [pendingSwitch, setPendingSwitch] = useState<SeatSelection | null>(null);
   const [lookupBusy, setLookupBusy] = useState(false);
   const [lookupMsg, setLookupMsg] = useState("");
   const [multi, setMulti] = useState<Array<{ memberId: string; name: string }>>([]);
@@ -143,6 +143,16 @@ export default function WizardPage() {
 
   const toggleSeat = (sel: SeatSelection) => {
     setNotice("");
+    // A holder still sitting on their own seats who taps a foreign seat gets
+    // the release warning first — the switch happens only after they confirm.
+    if (
+      reservedSeats.length > 0 && !switchAck &&
+      !reservedSeats.includes(sel.seatNo) &&
+      selected.every((n) => reservedSeats.includes(n))
+    ) {
+      setPendingSwitch(sel);
+      return;
+    }
     setSelected((cur) => {
       if (cur.includes(sel.seatNo)) {
         return cur.filter((n) => n !== sel.seatNo && n !== sel.pairSeatNo);
@@ -426,60 +436,9 @@ export default function WizardPage() {
                 <b className="tnum">{reservedSeats.join(", ")}</b> —{" "}
                 {reservedSeats.length === 1 ? "שמור" : "שמורים"} לך
                 {map?.reservedUntil ? ` עד ${map.reservedUntil}` : " לזמן מוגבל"}.
-
-                {intent === null && !switchWarning && (
-                  <div className="mt-3 flex flex-col gap-2">
-                    <button
-                      onClick={() => setIntent("keep")}
-                      className="btn-primary"
-                    >
-                      ✓ אשר את {reservedSeats.length === 1 ? "המקום שלי" : "המקומות שלי"} —{" "}
-                      {totalPrice(reservedSeats.length)} ₪
-                    </button>
-                    <button onClick={() => setSwitchWarning(true)} className="btn-ghost self-center">
-                      אני רוצה מקום אחר
-                    </button>
-                  </div>
-                )}
-
-                {switchWarning && intent === null && (
-                  <div className="pill pill-warn mt-3 step-in">
-                    <b>שים לב:</b> בחירת מקום אחר משחררת את{" "}
-                    {reservedSeats.length === 1 ? "מקומך" : "מקומותיך"} משנה שעברה
-                    (<span className="tnum">{reservedSeats.join(", ")}</span>) —{" "}
-                    {reservedSeats.length === 1 ? "הוא ייפתח" : "הם ייפתחו"} לכל דורש ולא ניתן להתחרט.
-                    <div className="mt-2 flex gap-2">
-                      <button
-                        onClick={() => { setIntent("switch"); setSwitchWarning(false); setSelected([]); }}
-                        className="rounded-xl bg-amber-600 px-4 py-2 font-bold text-white"
-                      >
-                        הבנתי, בחר מקום חדש
-                      </button>
-                      <button onClick={() => setSwitchWarning(false)} className="btn-ghost">
-                        ביטול
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {intent === "keep" && (
-                  <div className="mt-2 flex items-center justify-between gap-2">
-                    <span className="font-semibold text-green-800">
-                      ✓ נשארים במקום. השלם את הפרטים למטה והמשך לאישור.
-                    </span>
-                    <button onClick={() => { setIntent(null); setSelected([]); }} className="btn-ghost shrink-0 text-xs">
-                      שנה בחירה
-                    </button>
-                  </div>
-                )}
-                {intent === "switch" && (
-                  <div className="mt-2 flex items-center justify-between gap-2 text-xs opacity-75">
-                    <span>בחרת לעבור מקום — המקום הישן ישוחרר עם האישור הסופי.</span>
-                    <button onClick={() => { setIntent(null); setSelected([]); }} className="btn-ghost shrink-0 text-xs opacity-100">
-                      שנה בחירה
-                    </button>
-                  </div>
-                )}
+                <div className="mt-1 text-xs opacity-75">
+                  במסך הבחירה תוכל לאשר אותו בלחיצה אחת ({totalPrice(reservedSeats.length)} ₪) או לבחור מקום אחר.
+                </div>
               </div>
             )}
           </div>
@@ -507,16 +466,11 @@ export default function WizardPage() {
           </div>
           <button
             onClick={() => setStep(2)}
-            disabled={name.trim().length < 2 || (reservedSeats.length > 0 && intent === null)}
+            disabled={name.trim().length < 2}
             className="btn-primary"
           >
             המשך
           </button>
-          {reservedSeats.length > 0 && intent === null && (
-            <p className="text-center text-xs opacity-50">
-              בחר קודם: לאשר את המקום שלך או לעבור למקום אחר
-            </p>
-          )}
           {back(0)}
         </section>
       )}
@@ -564,26 +518,19 @@ export default function WizardPage() {
             className="field resize-none py-3" rows={2} />
           <button
             onClick={() => {
-              // The fast lane: a holder keeping last year's seats never sees
-              // the map — declarations done, the claim fires directly and
-              // lands on the payment screen.
-              if (intent === "keep" && reservedSeats.length) {
+              // A holder's own seats arrive preselected on the map — the
+              // keep-or-switch decision happens there, in front of the hall.
+              if (reservedSeats.length && !selected.length) {
                 setSelected(reservedSeats);
-                submitClaim(reservedSeats);
-                return;
+                if (!requestIdRef.current) requestIdRef.current = `c-${crypto.randomUUID()}`;
               }
               setStep(3);
             }}
-            disabled={!takanonApproved || !duesDeclared || claimBusy}
+            disabled={!takanonApproved || !duesDeclared}
             className="btn-primary"
           >
-            {claimBusy
-              ? "רושם…"
-              : intent === "keep" && reservedSeats.length
-                ? `אישור סופי — ${totalPrice(reservedSeats.length)} ₪`
-                : "המשך לבחירת מקום"}
+            המשך לבחירת מקום
           </button>
-          {notice && <div className="pill pill-warn" aria-live="polite">{notice}</div>}
           {back(1)}
         </section>
       )}
@@ -594,11 +541,36 @@ export default function WizardPage() {
           className="step-in flex flex-col gap-3 self-center"
           style={{ width: "min(100vw - 1.5rem, 1100px)" }}
         >
-          {reservedSeats.length > 0 && (
-            <div className="pill pill-warn" aria-live="polite">
+          {reservedSeats.length > 0 && !pendingSwitch && (
+            <div className="pill pill-hold" aria-live="polite">
               {selected.some((n) => reservedSeats.includes(n))
-                ? "בחרת שוב את המקום שלך — אישור סופי למטה."
-                : `בחירת מקום חדש תשחרר את ${reservedSeats.length === 1 ? "מקומך הישן" : "מקומותיך הישנים"} (${reservedSeats.join(", ")}) לכל דורש.`}
+                ? <>🪑 {reservedSeats.length === 1 ? "המקום שלך מסומן בזהב" : "המקומות שלך מסומנים בזהב"} — אישור סופי למטה, או לחיצה על מקום פנוי כדי לעבור.</>
+                : switchAck
+                  ? "עברת למקום אחר — המקום הישן שלך ישוחרר עם האישור הסופי."
+                  : "לחץ על המקום שלך (זהב) כדי לאשר אותו, או על מקום פנוי כדי לעבור."}
+            </div>
+          )}
+          {pendingSwitch && (
+            <div className="pill pill-warn step-in" aria-live="assertive">
+              <b>שים לב:</b> מעבר למקום {pendingSwitch.seatNo} משחרר את{" "}
+              {reservedSeats.length === 1 ? "מקומך" : "מקומותיך"} משנה שעברה
+              (<span className="tnum">{reservedSeats.join(", ")}</span>) לכל דורש, ולא ניתן להתחרט.
+              <div className="mt-2 flex gap-2">
+                <button
+                  onClick={() => {
+                    setSwitchAck(true);
+                    setSelected([pendingSwitch.seatNo]);
+                    if (seatAvailable(pendingSwitch.pairSeatNo)) {
+                      setNotice(`רוצה גם את המקום שמול? לחץ על מקום ${pendingSwitch.pairSeatNo}.`);
+                    }
+                    setPendingSwitch(null);
+                  }}
+                  className="rounded-xl bg-amber-600 px-4 py-2 font-bold text-white"
+                >
+                  הבנתי, עבור למקום {pendingSwitch.seatNo}
+                </button>
+                <button onClick={() => setPendingSwitch(null)} className="btn-ghost">ביטול</button>
+              </div>
             </div>
           )}
           {notice && <div className="pill pill-info" aria-live="polite">{notice}</div>}
