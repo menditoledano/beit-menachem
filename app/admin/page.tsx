@@ -330,7 +330,7 @@ export default function AdminPage() {
                 placeholder="טלפון" className="field h-10 min-h-0 w-36 text-sm" dir="ltr" />
               <button
                 disabled={!!busy || assignName.trim().length < 2}
-                className={`${opBtn} bg-brand-maroon text-white`}
+                className="rounded-xl bg-brand-maroon px-3 py-2 text-sm font-semibold text-white shadow-sm active:scale-95 disabled:opacity-40"
                 onClick={() =>
                   run("שיבוץ ידני", {
                     action: "gabbai", op: "assign", seatNos: selected,
