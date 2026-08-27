@@ -157,6 +157,7 @@ function coreCellPosition_(r, c) {
 var HOLDER_MERGES = [
   { display: 'טולדנו', phoneFrom: 'טולדנו', cells: ['טולדנו', 'יוסף יצחק טולדנו'] },
   { display: 'רייניץ', phoneFrom: 'נפתלי רייניץ', cells: ['נפתלי רייניץ', 'שניאור רייניץ', 'שניאור זלמן רייניץ'] },
+  { display: 'מארק', phoneFrom: 'חזקי מארק', cells: ['חזקי מארק', 'מנחם מארק', 'צבי מארק'] },
 ];
 
 /** Cell name -> {display, phoneKey} when part of a merge, else null. */
@@ -243,7 +244,7 @@ function seedChazakaSeats(body) {
         // never look free just because its holder skipped the member form.
         var merge = holderMergeFor_(nm);
         var displayName = merge ? merge.display : nm;
-        var match = byKey[merge ? merge.phoneKey : keyTight_(nm)];
+        var match = byKey[keyTight_(nm)] || (merge ? byKey[merge.phoneKey] : null);
         if (!match) skippedNoPhone++;
         sh.getRange(idx + 2, COLS.STATUS).setValue(STATUS.RESERVED);
         sh.getRange(idx + 2, COLS.CHAZAKA_NAME, 1, 2)
