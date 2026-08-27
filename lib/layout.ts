@@ -76,10 +76,16 @@ const MEN_STRIPS = 6;
 const WOMEN_STRIPS = 2;
 
 interface GroupSpec { key: "r" | "c" | "l"; startCol: number; seats: number }
+// Column 1 is the right WALL — every entrance, the sink and the sidurim
+// shelf live there — so seats start at column 3, leaving a clear corridor
+// ("צד הגישה") along it, and the aisles between groups are two columns wide
+// to echo the plan's 110cm passages.
+const WALL_CLEAR = 2;
+const AISLE_W = 2;
 const GROUPS: GroupSpec[] = [
-  { key: "r", startCol: 2, seats: SIDE_SEATS },                    // right group
-  { key: "c", startCol: 2 + SIDE_SEATS + 1, seats: CENTER_SEATS }, // center
-  { key: "l", startCol: 2 + SIDE_SEATS + 1 + CENTER_SEATS + 1, seats: SIDE_SEATS }, // left
+  { key: "r", startCol: 1 + WALL_CLEAR, seats: SIDE_SEATS },
+  { key: "c", startCol: 1 + WALL_CLEAR + SIDE_SEATS + AISLE_W, seats: CENTER_SEATS },
+  { key: "l", startCol: 1 + WALL_CLEAR + SIDE_SEATS + AISLE_W + CENTER_SEATS + AISLE_W, seats: SIDE_SEATS },
 ];
 const GRID_COLS = GROUPS[2].startCol + SIDE_SEATS; // left group's far edge
 
@@ -89,8 +95,8 @@ function stripRow(i: number): number {
   if (i <= 4) return base + (i - 1) * 3;
   // wide bimah aisle (2 extra rows) between strips 4 and 5
   if (i <= MEN_STRIPS) return base + (i - 1) * 3 + 2;
-  // mechitza row after the men's strips
-  return base + (i - 1) * 3 + 2 + 2;
+  // mechitza + breathing row before the women's section
+  return base + (i - 1) * 3 + 2 + 3;
 }
 
 export function seedFromOldHall(): HallLayout {
@@ -103,8 +109,11 @@ export function seedFromOldHall(): HallLayout {
       // Strip 5's right table is shorter: the hand-washing station and the
       // coffee corner sit beside the men's entrance there.
       const seats = i === 5 && g.key === "r" ? 4 : g.seats;
+      // The clipped table sits at its group's far (left) edge, clear of the
+      // sink and the men's entrance on the wall side.
+      const col = g.startCol + (g.seats - seats);
       tables.push({
-        kind: "table", id, row: stripRow(i), col: g.startCol,
+        kind: "table", id, row: stripRow(i), col,
         orientation: "h", seatsPerSide: seats, zone: "גברים",
       });
       numberingOrder.push(id);
@@ -123,9 +132,12 @@ export function seedFromOldHall(): HallLayout {
   WOMEN_GROUPS.forEach((groups, wi) => {
     for (const g of groups) {
       const base = GROUPS.find((x) => x.key === g.key)!;
+      // The back strip's shortened right table hugs its LEFT edge, keeping
+      // maximum distance from the women's entrance in the right corner.
+      const col = base.startCol + (base.seats - g.seats);
       const id = `t-w${wi + 1}-${g.key}`;
       tables.push({
-        kind: "table", id, row: stripRow(MEN_STRIPS + wi + 1), col: base.startCol,
+        kind: "table", id, row: stripRow(MEN_STRIPS + wi + 1), col,
         orientation: "h", seatsPerSide: g.seats, zone: "נשים",
       });
       numberingOrder.push(id);
