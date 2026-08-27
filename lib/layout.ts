@@ -95,8 +95,8 @@ function stripRow(i: number): number {
   if (i <= 4) return base + (i - 1) * 3;
   // wide bimah aisle (2 extra rows) between strips 4 and 5
   if (i <= MEN_STRIPS) return base + (i - 1) * 3 + 2;
-  // mechitza + breathing row before the women's section
-  return base + (i - 1) * 3 + 2 + 3;
+  // mechitza with a clear row on each side (the plan's 90/60cm buffers)
+  return base + (i - 1) * 3 + 2 + 2;
 }
 
 export function seedFromOldHall(): HallLayout {
@@ -150,13 +150,13 @@ export function seedFromOldHall(): HallLayout {
 
   const elements: ElementSpec[] = [
     { kind: "element", id: "ark", label: "ארון קודש", row: 1, col: arkCol, rowSpan: 2, colSpan: arkW },
-    { kind: "element", id: "lib-r", label: "ספריה", row: 1, col: 2, rowSpan: 1, colSpan: 5 },
-    { kind: "element", id: "lib-l", label: "ספריה", row: 1, col: GRID_COLS - 4, rowSpan: 1, colSpan: 5 },
+    { kind: "element", id: "lib-r", label: "ספריה", row: 1, col: 2, rowSpan: 1, colSpan: 7 },
+    { kind: "element", id: "lib-l", label: "ספריה", row: 1, col: GRID_COLS - 6, rowSpan: 1, colSpan: 7 },
     {
       kind: "element", id: "bimah", label: "בימת ספר תורה",
       row: stripRow(4) + 2, col: GROUPS[1].startCol, rowSpan: 2, colSpan: CENTER_SEATS,
     },
-    { kind: "element", id: "mechitza", label: "מחיצה — עזרת נשים", row: stripRow(6) + 2, col: 2, rowSpan: 1, colSpan: GRID_COLS - 1 },
+    { kind: "element", id: "mechitza", label: "מחיצה — עזרת נשים", row: stripRow(6) + 3, col: 2, rowSpan: 1, colSpan: GRID_COLS - 1 },
     { kind: "element", id: "entrance-m", label: "כניסת גברים", row: stripRow(4) + 2, col: 1, rowSpan: 2, colSpan: 1 },
     { kind: "element", id: "sink", label: "כיור", row: stripRow(5), col: 1, rowSpan: 2, colSpan: 1 },
     { kind: "element", id: "entrance-w", label: "כניסת נשים", row: stripRow(8), col: 1, rowSpan: 2, colSpan: 1 },
