@@ -53,6 +53,12 @@ function seatmap() {
     // Deadline of the reservation hold, verbatim from config, for the countdown.
     reservedUntil: String(cfg.ROUND_A_DEADLINE || ''),
     paymentUrl: String(cfg.PAYMENT_URL || ''),
+    prices: {
+      menFirst: Number(cfg.PRICE_FIRST_SEAT) || 150,
+      menExtra: Number(cfg.PRICE_EXTRA_SEAT) || 50,
+      womenFirst: Number(cfg.PRICE_WOMEN_FIRST_SEAT) || 150,
+      womenExtra: Number(cfg.PRICE_WOMEN_EXTRA_SEAT) || 50,
+    },
     serverTime: new Date().toISOString(),
   };
   cache.put('seatmap', JSON.stringify(payload), 4);

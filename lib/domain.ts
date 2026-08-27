@@ -86,6 +86,8 @@ export interface SeatMapPayload {
   reservedUntil: string;
   /** External payment page (mygabay). */
   paymentUrl: string;
+  /** Price ladders per section; women's seats sell on their own ladder. */
+  prices: { menFirst: number; menExtra: number; womenFirst: number; womenExtra: number };
   serverTime: string;
 }
 
@@ -128,6 +130,7 @@ export type ClaimFailureCode =
   | "CAP_REACHED"
   | "PAIR_REQUIRED"
   | "SHAPE_PAIR_FIRST"
+  | "MIXED_SECTION"
   | "SHAPE_ADJACENT"
   | "ROUND_A_NO_CHAZAKA"
   | "ROUND_A_NOT_YOURS"
@@ -161,12 +164,12 @@ export type ClaimResponse =
  * the only totals a member ever sees are 150, 200 and 250.
  */
 export function totalPrice(
-  seatCount: number,
-  firstSeatPrice = 150,
-  extraSeatPrice = 50,
+  count: number,
+  first = 150,
+  extra = 50,
 ): number {
-  if (seatCount <= 0) return 0;
-  return firstSeatPrice + extraSeatPrice * (seatCount - 1);
+  if (count <= 0) return 0;
+  return first + (count - 1) * extra;
 }
 
 /**

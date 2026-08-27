@@ -114,14 +114,34 @@ var CORE_BLOCKS = [
   { name: 'bottom', startRow: 14, rows: 6, pairs: [[2, 3], [5, 6], [8, 9], [11, 12], [14, 15]] },
 ];
 
-/** Sheet cell (row, col) -> {block, pairIdx, rowInBlock, side} or null. */
+/**
+ * Old cell -> position in the NEW tent hall, front rows.
+ *
+ * The old hall had the ark on its LEFT wall with vertical table-pairs; the
+ * tent has the ark on TOP with horizontal strips. Rotating the old map 90
+ * degrees clockwise maps it onto the tent front exactly as the gabbai asked
+ * ("the existing arrangement keeps its configuration, at the front near the
+ * ark"): old pair k from the ark -> tent strip k+1; old top block -> RIGHT
+ * group, middle -> CENTER (the bimah stays beside it), bottom -> LEFT group;
+ * the ark-side column of a pair -> the strip's ark-facing (upper) row.
+ * New seats grow behind, toward the women's section.
+ */
+var BLOCK_TO_GROUP = { top: 'r', mid: 'c', bottom: 'l' };
 function coreCellPosition_(r, c) {
   for (var b = 0; b < CORE_BLOCKS.length; b++) {
     var blk = CORE_BLOCKS[b];
     if (r < blk.startRow || r >= blk.startRow + blk.rows) continue;
     for (var p = 0; p < blk.pairs.length; p++) {
-      if (c === blk.pairs[p][0]) return { block: blk.name, pairIdx: p, rowInBlock: r - blk.startRow, side: 'a' };
-      if (c === blk.pairs[p][1]) return { block: blk.name, pairIdx: p, rowInBlock: r - blk.startRow, side: 'b' };
+      var side = null;
+      if (c === blk.pairs[p][0]) side = 'a';
+      else if (c === blk.pairs[p][1]) side = 'b';
+      if (side) {
+        return {
+          tableId: 't-m' + (p + 1) + '-' + BLOCK_TO_GROUP[blk.name],
+          side: side,
+          seatIdx: r - blk.startRow,
+        };
+      }
     }
   }
   return null;
@@ -174,12 +194,9 @@ function seedChazakaSeats(body) {
     });
     var byPosition = {};
     Object.keys(tableSeats).forEach(function (key) {
-      var parts = key.split('|');
-      var m = /^t-(top|mid|bottom)-p(\d+)$/.exec(parts[0]);
-      if (!m) return;
       tableSeats[key].sort(function (x, y) { return x.seatNo - y.seatNo; });
-      tableSeats[key].forEach(function (s, rowInBlock) {
-        byPosition[m[1] + '|' + m[2] + '|' + rowInBlock + '|' + parts[1]] = s.idx;
+      tableSeats[key].forEach(function (s, seatIdx) {
+        byPosition[key + '|' + seatIdx] = s.idx;
       });
     });
 
@@ -190,7 +207,7 @@ function seedChazakaSeats(body) {
         if (!nm || CORE_LABELS[nm]) continue;
         var pos = coreCellPosition_(r, c);
         if (!pos) { unmappable.push(nm + '@' + r + ',' + c); continue; }
-        var idx = byPosition[pos.block + '|' + pos.pairIdx + '|' + pos.rowInBlock + '|' + pos.side];
+        var idx = byPosition[pos.tableId + '|' + pos.side + '|' + pos.seatIdx];
         if (idx === undefined) { unmappable.push(nm + '@' + r + ',' + c); continue; }
         if (rows[idx][COLS.STATUS - 1] !== STATUS.FREE) { skippedTaken++; continue; }
         // EVERY named cell is reserved. A holder with a resolved phone can

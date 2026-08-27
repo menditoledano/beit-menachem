@@ -60,86 +60,97 @@ export interface HallLayout {
  * outward to make room. In OUR grid (RTL, column 1 = rightmost = entrance,
  * high columns = ark) a sheet column c lands at grid col SHEET_COLS - c.
  */
-const SHEET_COLS = 25; // ark wall 0 … entrance wall 24, after the extension
-const toGrid = (sheetCol: number) => SHEET_COLS - sheetCol;
-/** Sheet row r (0-based) → grid row (1-based, one row of margin on top). */
-const rowGrid = (sheetRow: number) => sheetRow + 2;
+/**
+ * The hall, transcribed from the architect's tent plan (12x24m, ark at the
+ * TOP): six men's table-strips in three groups per row (right 7 / center 4 /
+ * left 7 seats per side), the bimah in a wide aisle between strips 4 and 5,
+ * a mechitza, and two women's strips behind it. All entrances, the sink and
+ * the sidurim shelf sit on the RIGHT wall, libraries flank the ark.
+ *
+ * Grid: RTL, column 1 = right wall (entrances). Ark row at top. A table is
+ * orientation "h": upper seat row faces the ark, lower faces away.
+ */
+const SIDE_SEATS = 6;
+const CENTER_SEATS = 4;
+const MEN_STRIPS = 6;
+const WOMEN_STRIPS = 2;
 
-interface BlockSpec {
-  name: "top" | "mid" | "bottom";
-  sheetStartRow: number;
-  rows: number;
-  /** [arkSideCol, farCol] in sheet coordinates, ordered nearest-ark first. */
-  corePairs: Array<[number, number]>;
-  newPairs: Array<[number, number]>;
-}
-
-export const HALL_BLOCKS: BlockSpec[] = [
-  {
-    name: "top", sheetStartRow: 0, rows: 6,
-    corePairs: [[2, 3], [5, 6], [8, 9], [11, 12]],
-    newPairs: [[14, 15], [17, 18]],
-  },
-  {
-    name: "mid", sheetStartRow: 8, rows: 4,
-    corePairs: [[3, 4], [6, 7], [13, 14]],
-    newPairs: [[16, 17], [19, 20]],
-  },
-  {
-    name: "bottom", sheetStartRow: 14, rows: 6,
-    corePairs: [[2, 3], [5, 6], [8, 9], [11, 12], [14, 15]],
-    newPairs: [[17, 18], [20, 21]],
-  },
+interface GroupSpec { key: "r" | "c" | "l"; startCol: number; seats: number }
+const GROUPS: GroupSpec[] = [
+  { key: "r", startCol: 2, seats: SIDE_SEATS },                    // right group
+  { key: "c", startCol: 2 + SIDE_SEATS + 1, seats: CENTER_SEATS }, // center
+  { key: "l", startCol: 2 + SIDE_SEATS + 1 + CENTER_SEATS + 1, seats: SIDE_SEATS }, // left
 ];
+const GRID_COLS = GROUPS[2].startCol + SIDE_SEATS; // left group's far edge
+
+/** Grid row of a strip's UPPER seat row. Strips are 2 rows + 1 aisle row. */
+function stripRow(i: number): number {
+  const base = 4; // rows 1-3: libraries/ark block
+  if (i <= 4) return base + (i - 1) * 3;
+  // wide bimah aisle (2 extra rows) between strips 4 and 5
+  if (i <= MEN_STRIPS) return base + (i - 1) * 3 + 2;
+  // mechitza row after the men's strips
+  return base + (i - 1) * 3 + 2 + 2;
+}
 
 export function seedFromOldHall(): HallLayout {
   const tables: TableSpec[] = [];
   const numberingOrder: string[] = [];
 
-  // Numbering: ark-nearest pair first within each block, blocks top→bottom
-  // per pair index — mirroring how the old map read.
-  for (const block of HALL_BLOCKS) {
-    const pairs = [...block.corePairs, ...block.newPairs];
-    pairs.forEach(([arkCol], pairIdx) => {
-      const id = `t-${block.name}-p${pairIdx}`;
+  for (let i = 1; i <= MEN_STRIPS; i++) {
+    for (const g of GROUPS) {
+      const id = `t-m${i}-${g.key}`;
+      // Strip 5's right table is shorter: the hand-washing station and the
+      // coffee corner sit beside the men's entrance there.
+      const seats = i === 5 && g.key === "r" ? 4 : g.seats;
       tables.push({
-        kind: "table",
-        id,
-        row: rowGrid(block.sheetStartRow),
-        // Anchor at the pair's lower grid col; side "a" resolves to the
-        // higher grid col — which is toGrid(arkCol), the ark-side seat.
-        col: toGrid(arkCol) - 1,
-        orientation: "v",
-        seatsPerSide: block.rows,
-        zone: pairIdx <= 1 ? "מזרח" : pairIdx <= 3 ? "מרכז" : "כניסה",
+        kind: "table", id, row: stripRow(i), col: g.startCol,
+        orientation: "h", seatsPerSide: seats, zone: "גברים",
       });
-    });
-  }
-  // Walk numbering ark-outward across blocks: pair 0 of every block first.
-  const maxPairs = Math.max(...HALL_BLOCKS.map((b) => b.corePairs.length + b.newPairs.length));
-  for (let p = 0; p < maxPairs; p++) {
-    for (const block of HALL_BLOCKS) {
-      const id = `t-${block.name}-p${p}`;
-      if (tables.some((t) => t.id === id)) numberingOrder.push(id);
+      numberingOrder.push(id);
     }
   }
 
-  const gridCols = SHEET_COLS + 1; // + ark margin column
-  const gridRows = rowGrid(19) + 1;
+  // The women's strips are shorter than the men's: the plan's stated total
+  // is 250, and with the men's section faithful to the table dimensions
+  // (216), the women's section holds 34 — the back strip clipped further by
+  // the women's-entrance corner.
+  const WOMEN_GROUPS: Array<Array<{ key: "r" | "c" | "l"; seats: number }>> = [
+    [{ key: "r", seats: 6 }, { key: "c", seats: 4 }, { key: "l", seats: 6 }],
+    // The back strip loses a chair to the women's-entrance corner (right).
+    [{ key: "r", seats: 5 }, { key: "c", seats: 4 }, { key: "l", seats: 6 }],
+  ];
+  WOMEN_GROUPS.forEach((groups, wi) => {
+    for (const g of groups) {
+      const base = GROUPS.find((x) => x.key === g.key)!;
+      const id = `t-w${wi + 1}-${g.key}`;
+      tables.push({
+        kind: "table", id, row: stripRow(MEN_STRIPS + wi + 1), col: base.startCol,
+        orientation: "h", seatsPerSide: g.seats, zone: "נשים",
+      });
+      numberingOrder.push(id);
+    }
+  });
+
+  const gridRows = stripRow(MEN_STRIPS + WOMEN_STRIPS) + 3;
+  const arkW = 4;
+  const arkCol = Math.floor((GRID_COLS - arkW) / 2) + 1;
 
   const elements: ElementSpec[] = [
-    // Sheet: ark at col 0 rows 8-11, chazan row 7; both on the ark wall.
-    { kind: "element", id: "ark", label: "ארון קודש", row: rowGrid(8), col: toGrid(0), rowSpan: 4, colSpan: 1 },
-    { kind: "element", id: "chazan", label: "חזן", row: rowGrid(7), col: toGrid(0), rowSpan: 1, colSpan: 1 },
-    // Bimah between the middle pairs, sheet cols 9-10 (colSpan spans both).
-    { kind: "element", id: "bimah", label: "בימת ספר תורה", row: rowGrid(8), col: toGrid(10), rowSpan: 4, colSpan: 2 },
-    // Entrance wall fixtures move outward with the hall: sheet col 24.
-    { kind: "element", id: "entrance", label: "כניסה", row: rowGrid(0), col: toGrid(24), rowSpan: 2, colSpan: 1 },
-    { kind: "element", id: "sink", label: "כיור", row: rowGrid(2), col: toGrid(24), rowSpan: 2, colSpan: 1 },
-    { kind: "element", id: "library", label: "ספריה", row: rowGrid(14), col: toGrid(24), rowSpan: 6, colSpan: 1 },
+    { kind: "element", id: "ark", label: "ארון קודש", row: 1, col: arkCol, rowSpan: 2, colSpan: arkW },
+    { kind: "element", id: "lib-r", label: "ספריה", row: 1, col: 2, rowSpan: 1, colSpan: 5 },
+    { kind: "element", id: "lib-l", label: "ספריה", row: 1, col: GRID_COLS - 4, rowSpan: 1, colSpan: 5 },
+    {
+      kind: "element", id: "bimah", label: "בימת ספר תורה",
+      row: stripRow(4) + 2, col: GROUPS[1].startCol, rowSpan: 2, colSpan: CENTER_SEATS,
+    },
+    { kind: "element", id: "mechitza", label: "מחיצה — עזרת נשים", row: stripRow(6) + 2, col: 2, rowSpan: 1, colSpan: GRID_COLS - 1 },
+    { kind: "element", id: "entrance-m", label: "כניסת גברים", row: stripRow(4) + 2, col: 1, rowSpan: 2, colSpan: 1 },
+    { kind: "element", id: "sink", label: "כיור", row: stripRow(5), col: 1, rowSpan: 2, colSpan: 1 },
+    { kind: "element", id: "entrance-w", label: "כניסת נשים", row: stripRow(8), col: 1, rowSpan: 2, colSpan: 1 },
   ];
 
-  return { rows: gridRows, cols: gridCols, tables, elements, numberingOrder };
+  return { rows: gridRows, cols: GRID_COLS, tables, elements, numberingOrder };
 }
 
 export function countSeats(layout: HallLayout): number {

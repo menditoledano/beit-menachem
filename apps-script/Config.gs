@@ -41,6 +41,8 @@ var CONFIG_DEFAULTS = {
   PHASE: PHASE.A,
   PRICE_FIRST_SEAT: 150,
   PRICE_EXTRA_SEAT: 50,
+  PRICE_WOMEN_FIRST_SEAT: 150,
+  PRICE_WOMEN_EXTRA_SEAT: 50,
   MAX_SEATS_PER_PHONE: 3,
   BURST_PER_PHONE: 3,
   BURST_GLOBAL: 40,
@@ -101,8 +103,10 @@ function priceForNthSeat_(n, cfg) {
     : Number(cfg.PRICE_EXTRA_SEAT);
 }
 
-function totalPriceFor_(seatCount, cfg) {
-  if (seatCount <= 0) return 0;
-  return Number(cfg.PRICE_FIRST_SEAT) +
-    Number(cfg.PRICE_EXTRA_SEAT) * (seatCount - 1);
+function totalPriceFor_(count, cfg, section) {
+  if (count <= 0) return 0;
+  var women = section === 'נשים';
+  var first = Number(women ? cfg.PRICE_WOMEN_FIRST_SEAT : cfg.PRICE_FIRST_SEAT) || 150;
+  var extra = Number(women ? cfg.PRICE_WOMEN_EXTRA_SEAT : cfg.PRICE_EXTRA_SEAT) || 50;
+  return first + (count - 1) * extra;
 }

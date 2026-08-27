@@ -135,6 +135,20 @@ export default function WizardPage() {
    * third must be adjacent to that pair. Confirming one's own reserved seats
    * is exempt — last year's arrangement predates the rule.
    */
+  const sectionOf = (n: number | undefined): "גברים" | "נשים" => {
+    const cell = layout?.cells.find((x) => x.kind === "seat" && x.seatNo === n);
+    return cell?.kind === "seat" && cell.zone === "נשים" ? "נשים" : "גברים";
+  };
+  const ladder = (section: "גברים" | "נשים"): [number, number] => {
+    const pr = map?.prices;
+    if (!pr) return [150, 50];
+    return section === "נשים" ? [pr.womenFirst, pr.womenExtra] : [pr.menFirst, pr.menExtra];
+  };
+  const priceFor = (seats: number[]): number => {
+    const [f, e] = ladder(sectionOf(seats[0]));
+    return totalPrice(seats.length, f, e);
+  };
+
   const seatAvailable = (n: number | null): n is number => {
     if (!n) return false;
     const code = map?.status[String(n)] ?? "0";
@@ -159,6 +173,10 @@ export default function WizardPage() {
       }
       if (cur.length >= 3) {
         setNotice("עד 3 מקומות לרכישה אחת.");
+        return cur;
+      }
+      if (cur.length > 0 && sectionOf(sel.seatNo) !== sectionOf(cur[0])) {
+        setNotice("רכישה אחת נשארת באזור אחד — גברים או עזרת נשים. סיים את הרכישה הזו ואז בצע רכישה נוספת.");
         return cur;
       }
 
@@ -238,7 +256,7 @@ export default function WizardPage() {
     if (!requestIdRef.current) requestIdRef.current = `c-${crypto.randomUUID()}`;
   };
 
-  const price = totalPrice(selected.length);
+  const price = priceFor(selected);
 
   const submitClaim = async (seats?: number[]) => {
     const seatNos = seats ?? selected;
@@ -285,6 +303,9 @@ export default function WizardPage() {
           break;
         case "SHAPE_PAIR_FIRST":
           setNotice(`המקום השני חייב להיות מול הראשון${data.pairSeatNo ? ` — מקום ${data.pairSeatNo}` : ""}.`);
+          break;
+        case "MIXED_SECTION":
+          setNotice("רכישה אחת נשארת באזור אחד — גברים או עזרת נשים.");
           break;
         case "SHAPE_ADJACENT":
           setNotice(
@@ -440,7 +461,7 @@ export default function WizardPage() {
                 {reservedSeats.length === 1 ? "שמור" : "שמורים"} לך
                 {map?.reservedUntil ? ` עד ${map.reservedUntil}` : " לזמן מוגבל"}.
                 <div className="mt-1 text-xs opacity-75">
-                  במסך הבחירה תוכל לאשר אותו בלחיצה אחת ({totalPrice(reservedSeats.length)} ₪) או לבחור מקום אחר.
+                  במסך הבחירה תוכל לאשר אותו בלחיצה אחת ({priceFor(reservedSeats)} ₪) או לבחור מקום אחר.
                 </div>
               </div>
             )}
@@ -648,7 +669,7 @@ export default function WizardPage() {
               rel="noopener noreferrer"
               className="btn-primary max-w-xs no-underline"
             >
-              💳 לתשלום מאובטח — {totalPrice(claimedSeats.length)} ₪
+              💳 לתשלום מאובטח — {priceFor(claimedSeats)} ₪
             </a>
           )}
           <p className="text-xs opacity-50">

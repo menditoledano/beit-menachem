@@ -227,7 +227,24 @@ function claim(body) {
         'ok', 'released after claiming ' + seatNos.join(','), ip);
     }
 
-    var total = totalPriceFor_(held + seatNos.length, cfg) - totalPriceFor_(held, cfg);
+    // Pricing is per SECTION (men / women have separate ladders), and one
+    // claim stays inside one section — a mixed claim would make the ladder
+    // ambiguous and never matches a real purchase anyway.
+    var section = String(bySeat[seatNos[0]].row[COLS.ZONE - 1]);
+    for (var sIdx = 1; sIdx < seatNos.length; sIdx++) {
+      if (String(bySeat[seatNos[sIdx]].row[COLS.ZONE - 1]) !== section) {
+        return fail_(cache, reqId, 'MIXED_SECTION');
+      }
+    }
+    // `rows` is the PRE-write snapshot, so this is the count held BEFORE the
+    // current claim — exactly what the ladder needs.
+    var heldInSection = rows.filter(function (r) {
+      return normPhone_(r[COLS.PHONE - 1]) === phone &&
+        r[COLS.STATUS - 1] !== STATUS.FREE &&
+        String(r[COLS.ZONE - 1]) === section;
+    }).length;
+    var total = totalPriceFor_(heldInSection + seatNos.length, cfg, section) -
+      totalPriceFor_(heldInSection, cfg, section);
     logAction_('CLAIM', seatNos.join(','), name, phone, cfg.PHASE,
       newStatus === STATUS.PENDING ? 'pending' : 'ok',
       'ms=' + (Date.now() - t0), ip);
