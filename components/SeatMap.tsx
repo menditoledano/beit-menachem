@@ -166,30 +166,32 @@ export function SeatMap({
   }, [applyZoom]);
 
   return (
-    <div className="relative">
-      {/* the legend floats over the map so it never scrolls out of sight */}
-      <div className="absolute right-2 top-2 z-10 flex max-w-[70%] flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl bg-white/90 px-3 py-1.5 shadow backdrop-blur">
-        {([
-          ["bg-seat-free", "פנוי"],
-          ["bg-seat-reserved", "שמור"],
-          ["bg-seat-taken", "תפוס"],
-          ["bg-seat-mine", "שלך"],
-        ] as Array<[string, string]>).map(([cls, label]) => (
-          <span key={label} className="flex items-center gap-1 text-[12px] font-semibold">
-            <span className={`inline-block h-3.5 w-3.5 rounded-md ${cls}`} />
-            {label}
-          </span>
-        ))}
+    <div>
+      {/* One slim toolbar ABOVE the map — legend and zoom never cover seats. */}
+      <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2 px-1">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          {([
+            ["bg-seat-free", "פנוי"],
+            ["bg-seat-reserved", "שמור"],
+            ["bg-seat-taken", "תפוס"],
+            ["bg-seat-mine", "שלך"],
+          ] as Array<[string, string]>).map(([cls, label]) => (
+            <span key={label} className="flex items-center gap-1 text-[12px] font-semibold">
+              <span className={`inline-block h-3.5 w-3.5 rounded-md ${cls}`} />
+              {label}
+            </span>
+          ))}
+        </div>
+        <div className="flex items-center gap-1">
+          <button onClick={() => applyZoom(zoom * 1.2)} aria-label="הגדל"
+            className="h-10 w-10 rounded-full border border-black/10 bg-white text-xl font-bold shadow-sm">＋</button>
+          <button onClick={() => applyZoom(zoom / 1.2)} aria-label="הקטן"
+            className="h-10 w-10 rounded-full border border-black/10 bg-white text-xl font-bold shadow-sm">－</button>
+          <button onClick={fitToWidth} aria-label="הצג את כל האולם"
+            className="h-10 rounded-full border border-black/10 bg-white px-3 text-[13px] font-bold shadow-sm">הכל</button>
+        </div>
       </div>
-      {/* zoom controls: pinch works everywhere, these serve mouse + clarity */}
-      <div className="absolute left-2 top-2 z-10 flex flex-col gap-1">
-        <button onClick={() => applyZoom(zoom * 1.2)} aria-label="הגדל"
-          className="h-11 w-11 rounded-full bg-white/90 text-2xl font-bold shadow backdrop-blur">＋</button>
-        <button onClick={() => applyZoom(zoom / 1.2)} aria-label="הקטן"
-          className="h-11 w-11 rounded-full bg-white/90 text-2xl font-bold shadow backdrop-blur">－</button>
-        <button onClick={fitToWidth} aria-label="הצג את כל האולם"
-          className="h-11 rounded-full bg-white/90 px-3 text-[13px] font-bold shadow backdrop-blur">הכל</button>
-      </div>
+      <div className="relative">
       <div className="scroll-fade">
       <div
         ref={scrollRef}
@@ -274,6 +276,7 @@ export function SeatMap({
           );
         })}
         </div>
+      </div>
       </div>
       </div>
     </div>
