@@ -147,6 +147,32 @@ function coreCellPosition_(r, c) {
   return null;
 }
 
+/**
+ * Explicit family merges: cells on the old map that are ONE household — the
+ * surname cell and a given+surname cell for a son — collapse to a single
+ * holder, so one phone unlocks all of that family's seats. This list is
+ * DELIBERATELY explicit and short: surname-wide auto-merging would wrongly
+ * fuse the דרורי brothers, the three כהן households and the בורובסקי pair.
+ */
+var HOLDER_MERGES = [
+  { display: 'טולדנו', phoneFrom: 'טולדנו', cells: ['טולדנו', 'יוסף יצחק טולדנו'] },
+  { display: 'רייניץ', phoneFrom: 'נפתלי רייניץ', cells: ['נפתלי רייניץ', 'שניאור רייניץ', 'שניאור זלמן רייניץ'] },
+];
+
+/** Cell name -> {display, phoneKey} when part of a merge, else null. */
+function holderMergeFor_(nm) {
+  var k = keyTight_(nm);
+  for (var i = 0; i < HOLDER_MERGES.length; i++) {
+    var m = HOLDER_MERGES[i];
+    for (var j = 0; j < m.cells.length; j++) {
+      if (keyTight_(m.cells[j]) === k) {
+        return { display: m.display, phoneKey: keyTight_(m.phoneFrom) };
+      }
+    }
+  }
+  return null;
+}
+
 /** Non-seat labels that may appear inside the grid area of the core tab. */
 var CORE_LABELS = { 'חזן': 1, 'ארון קודש': 1, 'בימת ספר תורה': 1, 'כניסה': 1, 'כיור': 1, 'ספריה': 1 };
 
@@ -215,11 +241,13 @@ function seedChazakaSeats(body) {
         // held and his name on the map — nobody can grab it, and the WhatsApp
         // fallback routes him to the gabbai for manual assignment. A seat must
         // never look free just because its holder skipped the member form.
-        var match = byKey[keyTight_(nm)];
+        var merge = holderMergeFor_(nm);
+        var displayName = merge ? merge.display : nm;
+        var match = byKey[merge ? merge.phoneKey : keyTight_(nm)];
         if (!match) skippedNoPhone++;
         sh.getRange(idx + 2, COLS.STATUS).setValue(STATUS.RESERVED);
         sh.getRange(idx + 2, COLS.CHAZAKA_NAME, 1, 2)
-          .setValues([[nm, match ? match.phone : '']]);
+          .setValues([[displayName, match ? match.phone : '']]);
         reserved++;
       }
     }
