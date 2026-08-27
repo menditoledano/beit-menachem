@@ -82,6 +82,24 @@ function doPost(e) {
         return json_({ ok: true, result: fillChazakaFromExternal(body) });
       case 'seedChazakaSeats':
         return json_({ ok: true, result: seedChazakaSeats(body) });
+      case 'syncChazaka': {
+        // The whole offline pipeline in one press: roster refresh, name
+        // matching, safe auto-approvals, given+family resolution. Reads and
+        // writes _Members/_Chazaka only — never touches the live map.
+        var s1 = importMembers();
+        var s2 = runChazakaMatching(body);
+        var s3 = approveAutoChazaka();
+        var s4 = resolveChazakaV2();
+        return json_({ ok: true, result: 'מתפללים: ' + s1 + ' | הצלבה: ' + s2 + ' | ' + s3 + ' | השלמה: ' + JSON.stringify(s4.resolved) });
+      }
+      case 'refreshReservations': {
+        // Rebuild the RESERVED seats from _Chazaka. Purchased (taken) seats
+        // are untouched — release only clears holds, and seeding skips any
+        // seat that is not free.
+        var r1 = releaseReservedSeats();
+        var r2 = seedChazakaSeats(body);
+        return json_({ ok: true, result: r1 + ' | ' + r2 });
+      }
       case 'releaseReservedSeats':
         return json_({ ok: true, result: releaseReservedSeats() });
       case 'clearRegistrations': {

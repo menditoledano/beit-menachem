@@ -36,7 +36,7 @@ interface LogRow {
 }
 
 /** Ops that change state irreversibly enough to deserve an inline confirm. */
-const CONFIRM_OPS = new Set(["release", "releaseReservedSeats", "clearRegistrations", "phaseB"]);
+const CONFIRM_OPS = new Set(["release", "releaseReservedSeats", "refreshReservations", "clearRegistrations", "phaseB"]);
 
 export default function AdminPage() {
   const [token, setToken] = useState("");
@@ -344,35 +344,57 @@ export default function AdminPage() {
         )}
       </section>
 
-      {/* data operations */}
-      <section className="card flex flex-col gap-3 p-4">
-        <h2 className="font-bold">נתונים וחזקות</h2>
-        <div className="flex flex-wrap gap-2">
-          <button disabled={!!busy} className={opBtn}
-            onClick={() => run("ייבוא מתפללים", { action: "importMembers" })}>
-            רענן רשימת מתפללים
+      {/* data operations — three plain-language tasks, advanced tucked away */}
+      <section className="card flex flex-col gap-4 p-4">
+        <h2 className="font-bold">חזקות ונתונים</h2>
+
+        <div className="flex flex-col gap-1">
+          <button disabled={!!busy} className={`${opBtn} self-start`}
+            onClick={() => run("סנכרון חזקות", { action: "syncChazaka" })}>
+            🔄 סנכרן חזקות מהגיליון
           </button>
-          <button disabled={!!busy} className={opBtn}
-            onClick={() => run("הצלבת חזקות", { action: "runChazakaMatching" })}>
-            הרץ הצלבת חזקות
-          </button>
-          <button disabled={!!busy} className={opBtn}
-            onClick={() => run("אישור התאמות", { action: "approveAutoChazaka" })}>
-            אשר התאמות אוטומטיות
-          </button>
-          <button disabled={!!busy} className={opBtn}
-            onClick={() => run("זריעת חזקות", { action: "seedChazakaSeats" })}>
-            זרע חזקות על המפה
-          </button>
-          <button disabled={!!busy} className={`${opBtn} border-red-300 text-red-700`}
-            onClick={() => guarded("releaseReservedSeats", "שחרור כל החזקות שלא מומשו", { action: "releaseReservedSeats" })}>
-            שחרר חזקות שלא מומשו
-          </button>
-          <button disabled={!!busy} className={opBtn}
-            onClick={() => run("סריקת תפוגה", { action: "runExpiryNow" })}>
-            הרץ תפוגת משוריינים
-          </button>
+          <p className="text-xs opacity-60">
+            קורא את טופס פרטי המתפלל ואת המפה הישנה, מוצא טלפונים ומאשר התאמות
+            בטוחות. לא נוגע במפה החיה — בטוח להריץ תמיד.
+          </p>
         </div>
+
+        <div className="flex flex-col gap-1">
+          <button disabled={!!busy} className={`${opBtn} self-start`}
+            onClick={() => guarded("refreshReservations", "רענון שריונים על המפה", { action: "refreshReservations" })}>
+            🪑 רענן שריונים על המפה
+          </button>
+          <p className="text-xs opacity-60">
+            בונה מחדש את המקומות השמורים (הכחולים) לפי טבלת החזקות, כולל
+            טלפונים שנוספו. מקומות שכבר נקנו לא נפגעים.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <button disabled={!!busy} className={`${opBtn} self-start border-red-300 text-red-700`}
+            onClick={() => guarded("releaseReservedSeats", "פתיחת השריונים לקהל", { action: "releaseReservedSeats" })}>
+            🔓 פתח את השריונים לקהל
+          </button>
+          <p className="text-xs opacity-60">
+            מוחק את כל השריונים הכחולים שלא נוצלו והופך אותם לפנויים — עושים
+            את זה פעם אחת, כשעוברים לסבב ב&apos; הפתוח.
+          </p>
+        </div>
+
+        <details className="text-sm">
+          <summary className="cursor-pointer font-semibold opacity-70">מתקדם</summary>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button disabled={!!busy} className={opBtn}
+              onClick={() => run("סריקת תפוגה", { action: "runExpiryNow" })}>
+              הרץ תפוגת משוריינים
+            </button>
+            <button disabled={!!busy} className={opBtn}
+              onClick={() => guarded("clearRegistrations", "ניקוי טבלת הרישומים", { action: "clearRegistrations" })}>
+              נקה רישומי אשף
+            </button>
+          </div>
+        </details>
+
         <p className="text-xs opacity-50">
           התאמות ידניות — בטאב _Chazaka בגיליון. עריכת מבנה האולם —{" "}
           <a href="/admin/layout-editor" className="font-semibold underline">בעורך האולם</a>.

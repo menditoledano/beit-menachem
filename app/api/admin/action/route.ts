@@ -13,6 +13,8 @@ const ALLOWED = new Set([
   "runChazakaMatching",
   "approveAutoChazaka",
   "seedChazakaSeats",
+  "syncChazaka",
+  "refreshReservations",
   "releaseReservedSeats",
   "resolveChazakaV2",
   "clearRegistrations",

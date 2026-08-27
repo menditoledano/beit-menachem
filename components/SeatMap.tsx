@@ -170,12 +170,19 @@ export function SeatMap({
       {/* One slim toolbar ABOVE the map — legend and zoom never cover seats. */}
       <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2 px-1">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          {([
-            ["bg-seat-free", "פנוי"],
-            ["bg-seat-reserved", "שמור"],
-            ["bg-seat-taken", "תפוס"],
-            ["bg-seat-mine", "שלך"],
-          ] as Array<[string, string]>).map(([cls, label]) => (
+          {((adminMode
+            ? [
+                ["bg-seat-free", "פנוי"],
+                ["bg-seat-reserved", "שמור"],
+                ["bg-seat-taken", "תפוס"],
+                ["ring-4 ring-brand-maroon bg-white", "נבחר"],
+              ]
+            : [
+                ["bg-seat-free", "פנוי"],
+                ["bg-seat-reserved", "שמור"],
+                ["bg-seat-taken", "תפוס"],
+                ["bg-seat-mine", "שלך"],
+              ]) as Array<[string, string]>).map(([cls, label]) => (
             <span key={label} className="flex items-center gap-1 text-[12px] font-semibold">
               <span className={`inline-block h-3.5 w-3.5 rounded-md ${cls}`} />
               {label}
@@ -225,8 +232,18 @@ export function SeatMap({
           const isMyHold = mine.has(cell.seatNo);
           const clickable = adminMode || code === "0" || isMyHold || isSelected;
 
+          const statusBg =
+            code === "0" ? "bg-seat-free"
+            : code === "4" ? "bg-seat-reserved"
+            : code === "2" ? "bg-seat-pending"
+            : code === "3" ? "bg-seat-blocked"
+            : "bg-seat-taken";
           const cls = isSelected
-            ? "bg-seat-mine text-amber-950 ring-2 ring-amber-600 shadow-md"
+            // The gabbai selects seats to OPERATE on them — the status color
+            // must stay visible, so selection is a heavy ring, not gold.
+            ? adminMode
+              ? `${statusBg} text-white ring-4 ring-brand-maroon shadow-md`
+              : "bg-seat-mine text-amber-950 ring-2 ring-amber-600 shadow-md"
             : isMyHold
               ? "bg-seat-mine text-amber-950 ring-2 ring-amber-500 animate-pulse"
               : code === "0"
