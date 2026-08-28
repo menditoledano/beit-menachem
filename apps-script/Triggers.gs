@@ -13,6 +13,15 @@ function installTriggers() {
   if (existing.indexOf('hourlyMemberSync') === -1) {
     ScriptApp.newTrigger('hourlyMemberSync').timeBased().everyHours(1).create();
   }
+  // Fires the moment a member-form submission lands in the source
+  // spreadsheet — the person sees their seat connected right away, without
+  // waiting for the hourly sweep (which stays as the safety net).
+  if (existing.indexOf('onMemberFormSubmit') === -1) {
+    ScriptApp.newTrigger('onMemberFormSubmit')
+      .forSpreadsheet(MEMBERS_SOURCE_ID)
+      .onFormSubmit()
+      .create();
+  }
   return 'triggers: ' + ScriptApp.getProjectTriggers().length;
 }
 
@@ -109,4 +118,10 @@ function hourlyMemberSync() {
   try { importMembers(); } catch (e) { logAction_('HOURLY_SYNC', '', '', '', '', 'fail', 'import: ' + e, ''); }
   try { resolveChazakaV2(); } catch (e) { logAction_('HOURLY_SYNC', '', '', '', '', 'fail', 'resolve: ' + e, ''); }
   try { attachReservationPhones(); } catch (e) { logAction_('HOURLY_SYNC', '', '', '', '', 'fail', 'attach: ' + e, ''); }
+}
+
+
+/** Immediate connection on form submit; same non-destructive chain. */
+function onMemberFormSubmit() {
+  hourlyMemberSync();
 }
