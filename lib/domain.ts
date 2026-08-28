@@ -95,7 +95,7 @@ export type LookupResult =
   | { kind: "CHAZAKA"; memberId: string; name: string; reservedSeats?: number[] }
   | { kind: "MEMBER_NO_CHAZAKA"; memberId: string; name: string; reservedSeats?: number[] }
   /** One phone shared by several member rows — families do this constantly. */
-  | { kind: "MULTI"; candidates: Array<{ memberId: string; name: string }> }
+  | { kind: "MULTI"; candidates: Array<{ memberId: string; name: string }>; reservedSeats?: number[] }
   | { kind: "UNKNOWN" };
 
 export interface RegistrationData {

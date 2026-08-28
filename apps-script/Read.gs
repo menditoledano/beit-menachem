@@ -98,8 +98,12 @@ function lookup(body) {
     }
     return { kind: 'UNKNOWN' };
   }
-  // Families share a number; let the caller ask which household member this is.
-  if (matches.length > 1) return { kind: 'MULTI', candidates: matches };
+  // Families share a number; let the caller ask which household member this
+  // is. The reservation is keyed by PHONE, so the held seats ride along —
+  // omitting them here left duplicate-row members blind to their own hold.
+  if (matches.length > 1) {
+    return { kind: 'MULTI', candidates: matches, reservedSeats: reservedSeatsFor_(phone) };
+  }
 
   var hasChazaka = isChazakaPhone_(phone);
   return {

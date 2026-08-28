@@ -106,7 +106,13 @@ export default function WizardPage() {
       });
       const data = await res.json();
       const r: LookupResult = data.result ?? { kind: "UNKNOWN" };
-      if (r.kind === "MULTI") { setMulti(r.candidates); return; }
+      if (r.kind === "MULTI") {
+        // The hold is phone-keyed: whichever household member they pick,
+        // the reserved seats are theirs to see.
+        setReservedSeats(r.reservedSeats ?? []);
+        setMulti(r.candidates);
+        return;
+      }
       if (r.kind === "CHAZAKA" || r.kind === "MEMBER_NO_CHAZAKA") {
         setName(r.name);
         setReservedSeats(r.reservedSeats ?? []);

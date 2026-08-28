@@ -97,9 +97,20 @@ function claim(body) {
       return fail_(cache, reqId, 'ROUND_A_NOT_YOURS');
     }
 
+    // Section first: one claim stays inside one section, and both the cap
+    // and the price ladder are PER SECTION — a family buying in the women's
+    // section must not exhaust the father's men's-section allowance.
+    var section = String(bySeat[seatNos[0]].row[COLS.ZONE - 1]);
+    for (var sIdx = 1; sIdx < seatNos.length; sIdx++) {
+      if (String(bySeat[seatNos[sIdx]].row[COLS.ZONE - 1]) !== section) {
+        return fail_(cache, reqId, 'MIXED_SECTION');
+      }
+    }
     // Durable cap, recounted from the sheet inside the lock.
     var held = rows.filter(function (r) {
-      return normPhone_(r[COLS.PHONE - 1]) === phone && r[COLS.STATUS - 1] !== STATUS.FREE;
+      return normPhone_(r[COLS.PHONE - 1]) === phone &&
+        r[COLS.STATUS - 1] !== STATUS.FREE &&
+        String(r[COLS.ZONE - 1]) === section;
     }).length;
     var cap = Number(cfg.MAX_SEATS_PER_PHONE || 3);
     if (held + seatNos.length > cap) {
@@ -227,22 +238,9 @@ function claim(body) {
         'ok', 'released after claiming ' + seatNos.join(','), ip);
     }
 
-    // Pricing is per SECTION (men / women have separate ladders), and one
-    // claim stays inside one section — a mixed claim would make the ladder
-    // ambiguous and never matches a real purchase anyway.
-    var section = String(bySeat[seatNos[0]].row[COLS.ZONE - 1]);
-    for (var sIdx = 1; sIdx < seatNos.length; sIdx++) {
-      if (String(bySeat[seatNos[sIdx]].row[COLS.ZONE - 1]) !== section) {
-        return fail_(cache, reqId, 'MIXED_SECTION');
-      }
-    }
-    // `rows` is the PRE-write snapshot, so this is the count held BEFORE the
-    // current claim — exactly what the ladder needs.
-    var heldInSection = rows.filter(function (r) {
-      return normPhone_(r[COLS.PHONE - 1]) === phone &&
-        r[COLS.STATUS - 1] !== STATUS.FREE &&
-        String(r[COLS.ZONE - 1]) === section;
-    }).length;
+    // `held` above is the pre-claim count in this section — exactly what
+    // the per-section price ladder needs.
+    var heldInSection = held;
     var total = totalPriceFor_(heldInSection + seatNos.length, cfg, section) -
       totalPriceFor_(heldInSection, cfg, section);
     logAction_('CLAIM', seatNos.join(','), name, phone, cfg.PHASE,
