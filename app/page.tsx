@@ -121,7 +121,7 @@ export default function WizardPage() {
       }
       // UNKNOWN
       if (phase === "A") {
-        setLookupMsg("המספר לא נמצא ברשימת בעלי החזקה. אם היה לך מקום בשנה שעברה — פנה לגבאי בוואטסאפ ונפתור מיד.");
+        setLookupMsg("המספר לא נמצא במערכת. מילאת בעבר את שאלון פרטי המתפלל? אם לא — מלא אותו עכשיו, והמערכת תזהה אותך אוטומטית תוך שעה. אפשר גם לפנות לגבאי בוואטסאפ.");
       } else {
         // Round B welcomes everyone; they just type their name at the next step.
         setName("");
@@ -444,6 +444,12 @@ export default function WizardPage() {
           {lookupMsg && (
             <div className="pill pill-warn step-in" aria-live="polite">
               {lookupMsg}
+              {map?.memberFormUrl && (
+                <a href={map.memberFormUrl} target="_blank" rel="noopener noreferrer"
+                  className="mt-2 flex w-max items-center gap-2 rounded-full bg-brand-maroon px-4 py-2 font-bold text-white">
+                  📝 למילוי שאלון פרטי המתפלל
+                </a>
+              )}
               {waHref && (
                 <a href={waHref} target="_blank" rel="noopener noreferrer"
                   className="mt-2 flex w-max items-center gap-2 rounded-full bg-green-600 px-4 py-2 font-bold text-white shadow">

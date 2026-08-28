@@ -53,6 +53,7 @@ function seatmap() {
     // Deadline of the reservation hold, verbatim from config, for the countdown.
     reservedUntil: String(cfg.ROUND_A_DEADLINE || ''),
     paymentUrl: String(cfg.PAYMENT_URL || ''),
+    memberFormUrl: String(cfg.MEMBER_FORM_URL || ''),
     prices: {
       menFirst: Number(cfg.PRICE_FIRST_SEAT) || 150,
       menExtra: Number(cfg.PRICE_EXTRA_SEAT) || 50,

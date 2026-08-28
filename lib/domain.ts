@@ -86,6 +86,8 @@ export interface SeatMapPayload {
   reservedUntil: string;
   /** External payment page (mygabay). */
   paymentUrl: string;
+  /** The member-details Google Form; the self-service path to get connected. */
+  memberFormUrl: string;
   /** Price ladders per section; women's seats sell on their own ladder. */
   prices: { menFirst: number; menExtra: number; womenFirst: number; womenExtra: number };
   serverTime: string;

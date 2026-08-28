@@ -10,6 +10,9 @@ function installTriggers() {
   if (existing.indexOf('expirePendingSeats') === -1) {
     ScriptApp.newTrigger('expirePendingSeats').timeBased().everyMinutes(10).create();
   }
+  if (existing.indexOf('hourlyMemberSync') === -1) {
+    ScriptApp.newTrigger('hourlyMemberSync').timeBased().everyHours(1).create();
+  }
   return 'triggers: ' + ScriptApp.getProjectTriggers().length;
 }
 
@@ -55,4 +58,55 @@ function expirePendingSeats() {
   } finally {
     lock.releaseLock();
   }
+}
+
+
+/**
+ * Attaches phones to name-only reservations, in place. A holder who has
+ * since filled the member form gets connected without releasing anything —
+ * the map, purchased seats and existing holds are untouched.
+ */
+function attachReservationPhones() {
+  var chz = sheet_(TAB.CHAZAKA);
+  var byKey = {};
+  if (chz.getLastRow() > 1) {
+    chz.getRange(2, 1, chz.getLastRow() - 1, CHAZAKA_HEADERS.length).getValues()
+      .forEach(function (r) {
+        var phone = normPhone_(r[2]);
+        var approved = String(r[7] || '') !== '';
+        if (phone && approved) byKey[keyTight_(String(r[3]))] = phone;
+      });
+  }
+  var sh = sheet_(TAB.SEATS);
+  if (sh.getLastRow() < 2) return 'attached=0';
+  var rows = sh.getRange(2, 1, sh.getLastRow() - 1, SEAT_WIDTH).getValues();
+  var attached = 0;
+  rows.forEach(function (r, i) {
+    if (r[COLS.STATUS - 1] !== STATUS.RESERVED) return;
+    if (normPhone_(r[COLS.CHAZAKA_PHONE - 1])) return;
+    var nm = String(r[COLS.CHAZAKA_NAME - 1] || '');
+    if (!nm) return;
+    var merge = holderMergeFor_(nm);
+    var phone = byKey[keyTight_(nm)] || (merge ? byKey[merge.phoneKey] : '');
+    if (!phone) return;
+    sh.getRange(i + 2, COLS.CHAZAKA_PHONE).setValue(phone);
+    attached++;
+  });
+  if (attached) {
+    SpreadsheetApp.flush();
+    CacheService.getScriptCache().remove('seatmap');
+    logAction_('ATTACH_PHONES', '', '', '', '', 'ok', 'attached=' + attached, '');
+  }
+  return 'attached=' + attached;
+}
+
+/**
+ * Hourly: pull fresh member-form submissions and connect them. Deliberately
+ * NON-destructive — no rematching pass (that would wipe manual fills), only
+ * roster refresh, resolution of still-open rows, and in-place attachment.
+ */
+function hourlyMemberSync() {
+  try { importMembers(); } catch (e) { logAction_('HOURLY_SYNC', '', '', '', '', 'fail', 'import: ' + e, ''); }
+  try { resolveChazakaV2(); } catch (e) { logAction_('HOURLY_SYNC', '', '', '', '', 'fail', 'resolve: ' + e, ''); }
+  try { attachReservationPhones(); } catch (e) { logAction_('HOURLY_SYNC', '', '', '', '', 'fail', 'attach: ' + e, ''); }
 }
