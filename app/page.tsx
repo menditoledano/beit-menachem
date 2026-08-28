@@ -450,6 +450,20 @@ export default function WizardPage() {
                   📝 למילוי שאלון פרטי המתפלל
                 </a>
               )}
+              <button
+                onClick={doLookup}
+                disabled={lookupBusy}
+                className="mt-2 flex w-max items-center gap-2 rounded-full border-2 border-brand-maroon/40 bg-white px-4 py-2 font-bold text-brand-maroon disabled:opacity-60"
+              >
+                {lookupBusy ? (
+                  <>
+                    <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-brand-maroon border-t-transparent" />
+                    בודק…
+                  </>
+                ) : (
+                  "מילאתי את השאלון — בדוק שוב"
+                )}
+              </button>
               {waHref && (
                 <a href={waHref} target="_blank" rel="noopener noreferrer"
                   className="mt-2 flex w-max items-center gap-2 rounded-full bg-green-600 px-4 py-2 font-bold text-white shadow">

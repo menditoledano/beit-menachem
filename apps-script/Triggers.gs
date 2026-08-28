@@ -4,14 +4,16 @@
  */
 
 function installTriggers() {
+  // The hourly sweep is retired: sync runs on form submit, when there is
+  // actually something new. Remove any leftover hourly trigger.
+  ScriptApp.getProjectTriggers().forEach(function (tr) {
+    if (tr.getHandlerFunction() === 'hourlyMemberSync') ScriptApp.deleteTrigger(tr);
+  });
   var existing = ScriptApp.getProjectTriggers().map(function (t) {
     return t.getHandlerFunction();
   });
   if (existing.indexOf('expirePendingSeats') === -1) {
     ScriptApp.newTrigger('expirePendingSeats').timeBased().everyMinutes(10).create();
-  }
-  if (existing.indexOf('hourlyMemberSync') === -1) {
-    ScriptApp.newTrigger('hourlyMemberSync').timeBased().everyHours(1).create();
   }
   // Fires the moment a member-form submission lands in the source
   // spreadsheet — the person sees their seat connected right away, without
@@ -110,18 +112,19 @@ function attachReservationPhones() {
 }
 
 /**
- * Hourly: pull fresh member-form submissions and connect them. Deliberately
- * NON-destructive — no rematching pass (that would wipe manual fills), only
- * roster refresh, resolution of still-open rows, and in-place attachment.
+ * The member-sync chain: pull fresh form submissions and connect them.
+ * Deliberately NON-destructive — no rematching pass (that would wipe manual
+ * fills), only roster refresh, resolution of still-open rows, and in-place
+ * attachment. Runs on form submit.
  */
-function hourlyMemberSync() {
-  try { importMembers(); } catch (e) { logAction_('HOURLY_SYNC', '', '', '', '', 'fail', 'import: ' + e, ''); }
-  try { resolveChazakaV2(); } catch (e) { logAction_('HOURLY_SYNC', '', '', '', '', 'fail', 'resolve: ' + e, ''); }
-  try { attachReservationPhones(); } catch (e) { logAction_('HOURLY_SYNC', '', '', '', '', 'fail', 'attach: ' + e, ''); }
+function memberSync_() {
+  try { importMembers(); } catch (e) { logAction_('MEMBER_SYNC', '', '', '', '', 'fail', 'import: ' + e, ''); }
+  try { resolveChazakaV2(); } catch (e) { logAction_('MEMBER_SYNC', '', '', '', '', 'fail', 'resolve: ' + e, ''); }
+  try { attachReservationPhones(); } catch (e) { logAction_('MEMBER_SYNC', '', '', '', '', 'fail', 'attach: ' + e, ''); }
 }
 
 
 /** Immediate connection on form submit; same non-destructive chain. */
 function onMemberFormSubmit() {
-  hourlyMemberSync();
+  memberSync_();
 }
