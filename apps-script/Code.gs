@@ -102,6 +102,8 @@ function doPost(e) {
         var r3 = attachReservationPhones();
         return json_({ ok: true, result: r1 + ' | ' + r2 + ' | ' + r3 });
       }
+      case 'attachPhones':
+        return json_({ ok: true, result: attachReservationPhones() });
       case 'releaseReservedSeats':
         return json_({ ok: true, result: releaseReservedSeats() });
       case 'clearRegistrations': {

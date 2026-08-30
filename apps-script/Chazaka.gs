@@ -51,7 +51,10 @@ function runChazakaMatching(body) {
     chzSheet.getRange(2, 1, chzSheet.getLastRow() - 1, CHAZAKA_HEADERS.length).getValues()
       .forEach(function (r) {
         if (normPhone_(r[2]) && String(r[7] || '') !== '') {
+          // Two keys: the tight key, and a space-free key that survives
+          // stopword surnames ("יאיר בר" must not collapse to "יאיר").
           kept[keyTight_(String(r[3]))] = r;
+          kept[foldFinals_(normHe_(String(r[3]))).replace(/ /g, '')] = r;
         }
       });
   }
@@ -61,7 +64,8 @@ function runChazakaMatching(body) {
   Object.keys(holders).forEach(function (key) {
     var raw = holders[key];
     if (!key) return;
-    if (kept[key]) { out.push(kept[key]); preserved++; return; }
+    var keep = kept[key] || kept[foldFinals_(normHe_(raw)).replace(/ /g, '')];
+    if (keep) { out.push(keep); preserved++; return; }
 
     // Cascade. Each stage only fires when the previous produced nothing.
     var tightHits = mRows.filter(function (m) {
@@ -335,8 +339,13 @@ function fillChazakaFromExternal(body) {
     if (idx === undefined) { unmatched.push(String(e.target)); return; }
     var phone = normPhone_(e.phone);
     if (!phone) { unmatched.push(String(e.target) + ' (טלפון פסול)'); return; }
-    // Never overwrite a phone that is already live — human data wins.
-    if (normPhone_(rows[idx][2])) { skippedHasPhone++; return; }
+    // Never overwrite a phone that is already LIVE (approved) — human data
+    // wins. An unapproved row's phone is a fuzzy-match nomination, not a
+    // decision, and an explicit backfill outranks it.
+    if (normPhone_(rows[idx][2]) && String(rows[idx][7] || '') !== '') {
+      skippedHasPhone++;
+      return;
+    }
     sh.getRange(idx + 2, 2, 1, 2).setValues([[String(e.foundName || e.target), phone]]);
     sh.getRange(idx + 2, 5, 1, 3).setValues([[
       'external:' + String(e.source || '').slice(0, 40), 0.8, 'AUTO',

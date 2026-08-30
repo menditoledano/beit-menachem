@@ -76,18 +76,58 @@ function expirePendingSeats() {
  * Attaches phones to name-only reservations, in place. A holder who has
  * since filled the member form gets connected without releasing anything —
  * the map, purchased seats and existing holds are untouched.
+ *
+ * Candidates come from BOTH approved _Chazaka rows and the member roster,
+ * each indexed under several spellings of the same identity: the tight key,
+ * a space-free key (so "בן דור" meets surname "בנדור" and stopwords like
+ * "בר" survive as real surnames), and the bare surname / last word. A key
+ * that maps to more than one distinct phone attaches nothing — ambiguity
+ * stays human.
  */
 function attachReservationPhones() {
+  var compact = function (s) {
+    return foldFinals_(normHe_(String(s || ''))).replace(/ /g, '');
+  };
+  // key -> {} of distinct phones seen under that key
+  var index = {};
+  var put = function (key, phone) {
+    if (!key || key.length < 2 || !phone) return;
+    (index[key] = index[key] || {})[phone] = true;
+  };
+
   var chz = sheet_(TAB.CHAZAKA);
-  var byKey = {};
   if (chz.getLastRow() > 1) {
     chz.getRange(2, 1, chz.getLastRow() - 1, CHAZAKA_HEADERS.length).getValues()
       .forEach(function (r) {
         var phone = normPhone_(r[2]);
         var approved = String(r[7] || '') !== '';
-        if (phone && approved) byKey[keyTight_(String(r[3]))] = phone;
+        if (!phone || !approved) return;
+        var raw = String(r[3]);
+        put(keyTight_(raw), phone);
+        put(compact(raw), phone);
+        var words = normHe_(raw).split(' ').filter(String);
+        if (words.length > 1) put(compact(words[words.length - 1]), phone);
       });
   }
+  var mem = ss_().getSheetByName(TAB.MEMBERS);
+  if (mem && mem.getLastRow() > 1) {
+    mem.getRange(2, 1, mem.getLastRow() - 1, MEMBER_HEADERS.length).getValues()
+      .forEach(function (m) {
+        var phone = normPhone_(m[4]);
+        if (!phone) return;
+        var given = String(m[1] || ''), family = String(m[3] || '');
+        put(keyTight_(given + ' ' + family), phone);
+        put(compact(given + family), phone);
+        put(compact(family), phone);
+      });
+  }
+  var pick = function (key) {
+    var set = index[key];
+    if (!set) return '';
+    var phones = Object.keys(set);
+    return phones.length === 1 ? phones[0] : '';
+  };
+
   var sh = sheet_(TAB.SEATS);
   if (sh.getLastRow() < 2) return 'attached=0';
   var rows = sh.getRange(2, 1, sh.getLastRow() - 1, SEAT_WIDTH).getValues();
@@ -98,7 +138,8 @@ function attachReservationPhones() {
     var nm = String(r[COLS.CHAZAKA_NAME - 1] || '');
     if (!nm) return;
     var merge = holderMergeFor_(nm);
-    var phone = byKey[keyTight_(nm)] || (merge ? byKey[merge.phoneKey] : '');
+    var phone = pick(keyTight_(nm)) || pick(compact(nm)) ||
+      (merge ? pick(merge.phoneKey) : '');
     if (!phone) return;
     sh.getRange(i + 2, COLS.CHAZAKA_PHONE).setValue(phone);
     attached++;
