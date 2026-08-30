@@ -388,7 +388,14 @@ function sendClaimEmail_(name, phone, typedEmail, seatNos, total, isMember) {
   if (!to) to = typedEmail;
   if (!to) return;
 
-  var payUrl = String(getConfig_().PAYMENT_URL || '');
+  var cfgMail = getConfig_();
+  var payUrl = String(cfgMail.PAYMENT_URL || '');
+  var gabbaiPhone = String(cfgMail.GABBAI_PHONE || '');
+  var waUrl = gabbaiPhone
+    ? 'https://wa.me/' + gabbaiPhone + '?text=' + encodeURIComponent(
+        'שלום, כאן ' + name + '. שילמתי על מקום/ות ' + seatNos.join(', ') +
+        ' בסך ' + total + ' ש"ח — מצרף אסמכתא / הוראת קבע.')
+    : '';
   MailApp.sendEmail({
     to: to,
     subject: 'אישור בחירת מקום — בית מנחם גני איילון',
@@ -397,6 +404,9 @@ function sendClaimEmail_(name, phone, typedEmail, seatNos, total, isMember) {
       'נרשמה על שמך בחירת מקום/ות: <b>' + seatNos.join(', ') + '</b><br>' +
       'סכום לתשלום: <b>' + total + ' ש"ח</b><br>' +
       (payUrl ? '<a href="' + payUrl + '">לתשלום מאובטח לחץ כאן</a><br>' : '') +
+      '<br><b>חשוב:</b> לאחר התשלום יש לשלוח לגבאי בוואטסאפ אסמכתא על התשלום ' +
+      'או צילום הוראת הקבע — ללא אסמכתא המקום יתפנה.<br>' +
+      (waUrl ? '<a href="' + waUrl + '">לשליחת האסמכתא בוואטסאפ לחץ כאן</a><br>' : '') +
       '<br>אם לא אתה ביצעת את הבחירה — השב למייל זה או פנה לגבאי מיד.<br><br>' +
       'בית הכנסת חב"ד "בית מנחם", גני איילון</div>',
   });

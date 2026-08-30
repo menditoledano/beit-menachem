@@ -700,9 +700,25 @@ export default function WizardPage() {
               💳 לתשלום מאובטח — {priceFor(claimedSeats)} ₪
             </a>
           )}
-          <p className="text-xs opacity-50">
-            אפשר לשלם גם מאוחר יותר — המקום כבר רשום על שמך.
-          </p>
+          {/* The seat is provisional until proof of payment reaches the
+              gabbai — the deep link opens WhatsApp with the message ready,
+              so all the buyer adds is the receipt itself. */}
+          <div className="pill pill-warn text-right" aria-live="polite">
+            <b>חשוב:</b> לאחר התשלום יש לשלוח לגבאי בוואטסאפ אסמכתא על
+            התשלום (או צילום הוראת הקבע). ללא אסמכתא — המקום יתפנה.
+          </div>
+          {map?.gabbaiPhone && (
+            <a
+              href={`https://wa.me/${map.gabbaiPhone}?text=${encodeURIComponent(
+                `שלום, כאן ${name}. שילמתי על מקום/ות ${[...claimedSeats].sort((a, b) => a - b).join(", ")} בסך ${priceFor(claimedSeats)} ₪ — מצרף אסמכתא / הוראת קבע.`,
+              )}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex min-h-11 max-w-xs items-center justify-center gap-2 rounded-full bg-green-600 px-5 font-bold text-white no-underline shadow"
+            >
+              📎 שליחת אסמכתא לגבאי בוואטסאפ
+            </a>
+          )}
           {/* One purchase stays inside one section, so women's-section chairs
               are a SECOND purchase — offered here instead of forcing a fresh
               login (which is where the sale-night lockouts happened). */}
