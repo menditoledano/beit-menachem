@@ -243,6 +243,9 @@ function claim(body) {
     rows.forEach(function (r, i) {
       if (!holdIsMine(r)) return;
       if (seatNos.indexOf(Number(r[COLS.SEAT_NO - 1])) !== -1) return;
+      // Consumption is PER SECTION: buying women's-section chairs must not
+      // evaporate the men's-section hold that is still awaiting confirmation.
+      if (String(r[COLS.ZONE - 1]) !== section) return;
       sh.getRange(i + 2, COLS.STATUS).setValue(STATUS.FREE);
       sh.getRange(i + 2, COLS.CHAZAKA_NAME, 1, 2).setValues([['', '']]);
       releasedHolds.push(Number(r[COLS.SEAT_NO - 1]));

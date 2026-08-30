@@ -245,18 +245,20 @@ function seedChazakaSeats(body) {
 
     // A holder who already bought seats has EXERCISED the chazaka — re-seeding
     // would resurrect the very hold their purchase released. Known by the
-    // phone on the purchased row, or by the name it still carries.
+    // phone on the purchased row, or by the name it still carries. Keyed PER
+    // SECTION: a women's-section assignment must not consume a men's hold.
     var exercisedPhones = {};
     var exercisedNames = {};
     rows.forEach(function (r) {
       var st = r[COLS.STATUS - 1];
       if (st !== STATUS.TAKEN && st !== STATUS.PENDING) return;
+      var zone = String(r[COLS.ZONE - 1]);
       var p = normPhone_(r[COLS.PHONE - 1]);
-      if (p) exercisedPhones['p' + p] = true;
+      if (p) exercisedPhones[zone + '|p' + p] = true;
       [String(r[COLS.NAME - 1] || ''), String(r[COLS.CHAZAKA_NAME - 1] || '')]
         .forEach(function (nm2) {
           var k = keyTight_(nm2);
-          if (k) exercisedNames[k] = true;
+          if (k) exercisedNames[zone + '|' + k] = true;
         });
     });
 
@@ -278,8 +280,10 @@ function seedChazakaSeats(body) {
         var merge = holderMergeFor_(nm);
         var displayName = merge ? merge.display : nm;
         var match = byKey[keyTight_(nm)] || (merge ? byKey[merge.phoneKey] : null);
-        if ((match && exercisedPhones['p' + match.phone]) ||
-            exercisedNames[keyTight_(displayName)] || exercisedNames[keyTight_(nm)]) {
+        var seatZone = String(rows[idx][COLS.ZONE - 1]);
+        if ((match && exercisedPhones[seatZone + '|p' + match.phone]) ||
+            exercisedNames[seatZone + '|' + keyTight_(displayName)] ||
+            exercisedNames[seatZone + '|' + keyTight_(nm)]) {
           skippedExercised++;
           continue;
         }
