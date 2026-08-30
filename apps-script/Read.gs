@@ -86,15 +86,17 @@ function lookup(body) {
       return { memberId: String(r[0]), name: (String(r[1]) + ' ' + String(r[3])).trim() };
     });
 
+  var idn = seatIdentityFor_(phone);
+
   if (!matches.length) {
-    // Not in the member roster — but a reservation can still exist for this
-    // phone, backfilled from external documents. The hold itself is the
-    // identity; without this branch those holders are locked out of the very
-    // seats reserved for them.
-    var held = reservedSeatsWithName_(phone);
-    if (held.seats.length) {
+    // Not in the member roster — but the seats themselves can identify this
+    // phone: a hold backfilled from external documents, or a purchase already
+    // made (the buyer who returns to add women's-section seats must not hear
+    // "המספר לא נמצא" from the system that just sold to them).
+    if (idn.reserved.length || idn.taken.length) {
       return {
-        kind: 'CHAZAKA', memberId: '', name: held.name, reservedSeats: held.seats,
+        kind: 'CHAZAKA', memberId: '', name: idn.name,
+        reservedSeats: idn.reserved, takenSeats: idn.taken,
       };
     }
     return { kind: 'UNKNOWN' };
@@ -103,7 +105,10 @@ function lookup(body) {
   // is. The reservation is keyed by PHONE, so the held seats ride along —
   // omitting them here left duplicate-row members blind to their own hold.
   if (matches.length > 1) {
-    return { kind: 'MULTI', candidates: matches, reservedSeats: reservedSeatsFor_(phone) };
+    return {
+      kind: 'MULTI', candidates: matches,
+      reservedSeats: idn.reserved, takenSeats: idn.taken,
+    };
   }
 
   var hasChazaka = isChazakaPhone_(phone);
@@ -113,25 +118,41 @@ function lookup(body) {
     name: matches[0].name,
     // The member's own reserved seats, so the wizard can greet them with
     // "המקום שלך שמור" and jump straight there on the map.
-    reservedSeats: reservedSeatsFor_(phone),
+    reservedSeats: idn.reserved,
+    takenSeats: idn.taken,
   };
 }
 
-function reservedSeatsFor_(phone) {
-  return reservedSeatsWithName_(phone).seats;
-}
-
-function reservedSeatsWithName_(phone) {
+/**
+ * Everything the seat tab knows about a phone: its live holds (by hold phone,
+ * or by the name _Chazaka matched to this phone when the hold is name-only)
+ * and its purchased seats. The purchase branch is what keeps a buyer
+ * recognisable after their hold was consumed.
+ */
+function seatIdentityFor_(phone) {
+  var out = { reserved: [], taken: [], name: '' };
   var sh = ss_().getSheetByName(TAB.SEATS);
-  if (!sh || sh.getLastRow() < 2) return { seats: [], name: '' };
-  var out = [];
-  var name = '';
+  if (!sh || sh.getLastRow() < 2) return out;
+  var nameKeys = chazakaNameKeysForPhone_(phone);
+  var holdName = '';
   sh.getRange(2, 1, sh.getLastRow() - 1, SEAT_WIDTH).getValues().forEach(function (r) {
-    if (r[COLS.STATUS - 1] === STATUS.RESERVED &&
-        normPhone_(r[COLS.CHAZAKA_PHONE - 1]) === phone) {
-      out.push(Number(r[COLS.SEAT_NO - 1]));
-      if (!name) name = String(r[COLS.CHAZAKA_NAME - 1] || '');
+    var st = r[COLS.STATUS - 1];
+    if (st === STATUS.RESERVED) {
+      var hp = normPhone_(r[COLS.CHAZAKA_PHONE - 1]);
+      var holderName = String(r[COLS.CHAZAKA_NAME - 1] || '');
+      var mine = hp ? hp === phone : nameKeys[keyTight_(holderName)] === true;
+      if (mine) {
+        out.reserved.push(Number(r[COLS.SEAT_NO - 1]));
+        if (!holdName) holdName = holderName;
+      }
+    } else if (st === STATUS.TAKEN || st === STATUS.PENDING) {
+      if (normPhone_(r[COLS.PHONE - 1]) === phone) {
+        out.taken.push(Number(r[COLS.SEAT_NO - 1]));
+        // The typed full name from the purchase beats the hold's surname.
+        if (!out.name) out.name = String(r[COLS.NAME - 1] || '');
+      }
     }
   });
-  return { seats: out, name: name };
+  if (!out.name) out.name = holdName;
+  return out;
 }

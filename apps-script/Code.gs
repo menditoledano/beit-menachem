@@ -95,10 +95,12 @@ function doPost(e) {
       case 'refreshReservations': {
         // Rebuild the RESERVED seats from _Chazaka. Purchased (taken) seats
         // are untouched — release only clears holds, and seeding skips any
-        // seat that is not free.
+        // seat that is not free and any holder who already bought. The
+        // attach pass then puts every resolvable phone back on its hold.
         var r1 = releaseReservedSeats();
         var r2 = seedChazakaSeats(body);
-        return json_({ ok: true, result: r1 + ' | ' + r2 });
+        var r3 = attachReservationPhones();
+        return json_({ ok: true, result: r1 + ' | ' + r2 + ' | ' + r3 });
       }
       case 'releaseReservedSeats':
         return json_({ ok: true, result: releaseReservedSeats() });

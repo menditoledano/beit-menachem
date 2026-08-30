@@ -42,10 +42,26 @@ function runChazakaMatching(body) {
     ? members.getRange(2, 1, members.getLastRow() - 1, MEMBER_HEADERS.length).getValues()
     : [];
 
+  // A row that already carries a phone AND an approval stamp is human-decided
+  // data — a manual edit or an external-document backfill. Re-matching must
+  // carry it forward verbatim, never regress it to a fresh fuzzy guess.
+  var chzSheet = sheet_(TAB.CHAZAKA);
+  var kept = {};
+  if (chzSheet.getLastRow() > 1) {
+    chzSheet.getRange(2, 1, chzSheet.getLastRow() - 1, CHAZAKA_HEADERS.length).getValues()
+      .forEach(function (r) {
+        if (normPhone_(r[2]) && String(r[7] || '') !== '') {
+          kept[keyTight_(String(r[3]))] = r;
+        }
+      });
+  }
+
   var out = [];
+  var preserved = 0;
   Object.keys(holders).forEach(function (key) {
     var raw = holders[key];
     if (!key) return;
+    if (kept[key]) { out.push(kept[key]); preserved++; return; }
 
     // Cascade. Each stage only fires when the previous produced nothing.
     var tightHits = mRows.filter(function (m) {
@@ -94,7 +110,7 @@ function runChazakaMatching(body) {
 
   var counts = { AUTO: 0, REVIEW: 0, AMBIGUOUS: 0, NO_MATCH: 0 };
   out.forEach(function (r) { counts[r[6]] = (counts[r[6]] || 0) + 1; });
-  var summary = 'holders=' + out.length +
+  var summary = 'holders=' + out.length + ' preserved=' + preserved +
     ' auto=' + counts.AUTO + ' review=' + counts.REVIEW +
     ' ambiguous=' + counts.AMBIGUOUS + ' none=' + counts.NO_MATCH;
   logAction_('CHAZAKA_MATCH', '', '', '', '', 'ok', summary, '');
@@ -227,7 +243,24 @@ function seedChazakaSeats(body) {
       });
     });
 
-    var reserved = 0, skippedNoPhone = 0, skippedTaken = 0, unmappable = [];
+    // A holder who already bought seats has EXERCISED the chazaka — re-seeding
+    // would resurrect the very hold their purchase released. Known by the
+    // phone on the purchased row, or by the name it still carries.
+    var exercisedPhones = {};
+    var exercisedNames = {};
+    rows.forEach(function (r) {
+      var st = r[COLS.STATUS - 1];
+      if (st !== STATUS.TAKEN && st !== STATUS.PENDING) return;
+      var p = normPhone_(r[COLS.PHONE - 1]);
+      if (p) exercisedPhones['p' + p] = true;
+      [String(r[COLS.NAME - 1] || ''), String(r[COLS.CHAZAKA_NAME - 1] || '')]
+        .forEach(function (nm2) {
+          var k = keyTight_(nm2);
+          if (k) exercisedNames[k] = true;
+        });
+    });
+
+    var reserved = 0, skippedNoPhone = 0, skippedTaken = 0, skippedExercised = 0, unmappable = [];
     for (var r = 0; r < grid.length; r++) {
       for (var c = 0; c < grid[r].length; c++) {
         var nm = String(grid[r][c] || '').trim();
@@ -245,6 +278,11 @@ function seedChazakaSeats(body) {
         var merge = holderMergeFor_(nm);
         var displayName = merge ? merge.display : nm;
         var match = byKey[keyTight_(nm)] || (merge ? byKey[merge.phoneKey] : null);
+        if ((match && exercisedPhones['p' + match.phone]) ||
+            exercisedNames[keyTight_(displayName)] || exercisedNames[keyTight_(nm)]) {
+          skippedExercised++;
+          continue;
+        }
         if (!match) skippedNoPhone++;
         sh.getRange(idx + 2, COLS.STATUS).setValue(STATUS.RESERVED);
         sh.getRange(idx + 2, COLS.CHAZAKA_NAME, 1, 2)
@@ -257,6 +295,7 @@ function seedChazakaSeats(body) {
     CacheService.getScriptCache().remove('seatmap');
     var summary = 'reserved=' + reserved +
       ' nameOnlyNoPhone=' + skippedNoPhone + ' alreadyTaken=' + skippedTaken +
+      ' exercised=' + skippedExercised +
       (unmappable.length ? ' unmappable=' + unmappable.slice(0, 8).join(';') : '');
     logAction_('SEED_CHAZAKA', '', '', '', '', 'ok', summary, '');
     return summary;

@@ -94,10 +94,10 @@ export interface SeatMapPayload {
 }
 
 export type LookupResult =
-  | { kind: "CHAZAKA"; memberId: string; name: string; reservedSeats?: number[] }
-  | { kind: "MEMBER_NO_CHAZAKA"; memberId: string; name: string; reservedSeats?: number[] }
+  | { kind: "CHAZAKA"; memberId: string; name: string; reservedSeats?: number[]; takenSeats?: number[] }
+  | { kind: "MEMBER_NO_CHAZAKA"; memberId: string; name: string; reservedSeats?: number[]; takenSeats?: number[] }
   /** One phone shared by several member rows — families do this constantly. */
-  | { kind: "MULTI"; candidates: Array<{ memberId: string; name: string }>; reservedSeats?: number[] }
+  | { kind: "MULTI"; candidates: Array<{ memberId: string; name: string }>; reservedSeats?: number[]; takenSeats?: number[] }
   | { kind: "UNKNOWN" };
 
 export interface RegistrationData {
@@ -134,8 +134,6 @@ export type ClaimFailureCode =
   | "SHAPE_PAIR_FIRST"
   | "MIXED_SECTION"
   | "SHAPE_ADJACENT"
-  | "ROUND_A_NO_CHAZAKA"
-  | "ROUND_A_NOT_YOURS"
   | "TOO_FAST"
   | "SALE_CLOSED"
   | "SERVER_ERROR"

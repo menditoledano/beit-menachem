@@ -45,56 +45,71 @@ function claim(body) {
     return { ok: false, code: 'BUSY', retryAfterMs: 700 + Math.floor(Math.random() * 900) };
   }
 
+  var cfg = null;
+  // Every rejection is written to _Log — sale-night complaints get diagnosed
+  // from the sheet, not reconstructed from memory.
+  var rej = function (code, extra) {
+    logAction_('REJECT', seatNos.join(','), name, phone,
+      String((cfg && cfg.PHASE) || ''), code, extra ? JSON.stringify(extra) : '', ip);
+    return fail_(cache, reqId, code, extra);
+  };
+
   try {
     var again = cache.get('req:' + reqId);
     if (again) return JSON.parse(again);
 
-    var cfg = getConfig_();
-    if (cfg.MODE !== 'OPEN') return fail_(cache, reqId, 'SALE_CLOSED');
+    cfg = getConfig_();
+    if (cfg.MODE !== 'OPEN') return rej('SALE_CLOSED');
 
     // Burst throttle. Read-modify-write on CacheService is only atomic because
     // we hold the lock. It is a throttle, never a cap — cache entries evict.
     if (!bump_(cache, 'ph:' + phone, Number(cfg.BURST_PER_PHONE || 3), 60)) {
-      return fail_(cache, reqId, 'TOO_FAST', { retryAfterMs: 30000 });
+      return rej('TOO_FAST', { retryAfterMs: 30000 });
     }
     if (!bump_(cache, 'global', Number(cfg.BURST_GLOBAL || 40), 60)) {
-      return fail_(cache, reqId, 'BUSY', { retryAfterMs: 5000 });
+      return rej('BUSY', { retryAfterMs: 5000 });
     }
 
     var sh = sheet_(TAB.SEATS);
     var lastRow = sh.getLastRow();
-    if (lastRow < 2) return fail_(cache, reqId, 'SALE_CLOSED');
+    if (lastRow < 2) return rej('SALE_CLOSED');
     // One read of the whole tab (~200 rows) gives the re-read AND the cap
     // recount AND the pairing lookups. Never count the cap from cache.
     var rows = sh.getRange(2, 1, lastRow - 1, SEAT_WIDTH).getValues();
     var bySeat = {};
     rows.forEach(function (r, i) { bySeat[Number(r[COLS.SEAT_NO - 1])] = { row: r, idx: i }; });
 
+    // A hold belongs to this caller either by the phone on the reservation,
+    // or — when the seed left it name-only — by the name _Chazaka matched to
+    // this phone offline. Both paths are phone-authenticated; typed input
+    // never grants a hold.
+    var myNameKeys = chazakaNameKeysForPhone_(phone);
+    var holdIsMine = function (row) {
+      if (row[COLS.STATUS - 1] !== STATUS.RESERVED) return false;
+      var hp = normPhone_(row[COLS.CHAZAKA_PHONE - 1]);
+      if (hp) return hp === phone;
+      return myNameKeys[keyTight_(String(row[COLS.CHAZAKA_NAME - 1] || ''))] === true;
+    };
+
     for (var i = 0; i < seatNos.length; i++) {
       var entry = bySeat[seatNos[i]];
-      if (!entry) return fail_(cache, reqId, 'BAD_SEAT');
+      if (!entry) return rej('BAD_SEAT');
       var st = entry.row[COLS.STATUS - 1];
-      // A reserved seat is claimable, but only by the phone on the
-      // reservation — anyone else sees it as taken until the hold lapses.
+      // A reserved seat is claimable, but only by its own holder — anyone
+      // else sees it as taken until the hold lapses.
       if (st === STATUS.RESERVED) {
-        if (normPhone_(entry.row[COLS.CHAZAKA_PHONE - 1]) !== phone) {
-          return fail_(cache, reqId, 'RESERVED_FOR_OTHER', {
+        if (!holdIsMine(entry.row)) {
+          return rej('RESERVED_FOR_OTHER', {
             seatNo: seatNos[i],
             holder: String(entry.row[COLS.CHAZAKA_NAME - 1] || ''),
           });
         }
       } else if (st !== STATUS.FREE) {
-        return fail_(cache, reqId, 'TAKEN', {
+        return rej('TAKEN', {
           seatNo: seatNos[i],
           holder: String(entry.row[COLS.NAME - 1] || '').split(' ')[0],
         });
       }
-    }
-
-    // Round A: chazaka holders only, matched by exact phone. Fuzzy matching
-    // never runs here — it ran offline, weeks ago, into _Chazaka.
-    if (cfg.PHASE === 'A' && !isChazakaPhone_(phone)) {
-      return fail_(cache, reqId, 'ROUND_A_NOT_YOURS');
     }
 
     // Section first: one claim stays inside one section, and both the cap
@@ -103,7 +118,7 @@ function claim(body) {
     var section = String(bySeat[seatNos[0]].row[COLS.ZONE - 1]);
     for (var sIdx = 1; sIdx < seatNos.length; sIdx++) {
       if (String(bySeat[seatNos[sIdx]].row[COLS.ZONE - 1]) !== section) {
-        return fail_(cache, reqId, 'MIXED_SECTION');
+        return rej('MIXED_SECTION');
       }
     }
     // Durable cap, recounted from the sheet inside the lock.
@@ -114,7 +129,7 @@ function claim(body) {
     }).length;
     var cap = Number(cfg.MAX_SEATS_PER_PHONE || 3);
     if (held + seatNos.length > cap) {
-      return fail_(cache, reqId, 'CAP_REACHED', { cap: cap, held: held });
+      return rej('CAP_REACHED', { cap: cap, held: held });
     }
 
     // Purchase shape. The rule, as the gabbai stated it: the second seat MUST
@@ -122,13 +137,10 @@ function claim(body) {
     // to that pair. This is what prevents a family buying a whole row of
     // ark-facing seats with nobody opposite.
     //
-    // Exemption: a selection consisting entirely of seats RESERVED for this
-    // phone is a historic position being confirmed — last year's arrangement
+    // Exemption: a selection consisting entirely of this caller's own holds
+    // is a historic position being confirmed — last year's arrangement
     // predates the rule and is honored as-is.
-    var reservedForMe = function (row) {
-      return row[COLS.STATUS - 1] === STATUS.RESERVED &&
-        normPhone_(row[COLS.CHAZAKA_PHONE - 1]) === phone;
-    };
+    var reservedForMe = holdIsMine;
     var allMine = seatNos.every(function (n) { return reservedForMe(bySeat[n].row); });
 
     if (!allMine) {
@@ -144,7 +156,7 @@ function claim(body) {
         }
         if (!pairFound) {
           var wantPair = Number(bySeat[seatNos[0]].row[COLS.PAIR - 1]);
-          return fail_(cache, reqId, 'SHAPE_PAIR_FIRST', {
+          return rej('SHAPE_PAIR_FIRST', {
             seatNo: seatNos[0], pairSeatNo: wantPair,
           });
         }
@@ -182,18 +194,21 @@ function claim(body) {
               }
             });
           }
-          return fail_(cache, reqId, 'SHAPE_ADJACENT', {
+          return rej('SHAPE_ADJACENT', {
             pair: pairFound, seatNo: extras[0], suggestions: suggestions,
           });
         }
       }
     }
 
-    // Unknown phone in Round B parks as PENDING — visible as reserved, expires
-    // by trigger — so a typo'd phone cannot permanently grab seats, while a
-    // real member whose number is missing from the roster still gets served.
+    // Anyone may buy a FREE seat in any round — chazaka priority is enforced
+    // by the RESERVED holds themselves, seat by seat, so a phase-wide gate
+    // adds no protection and locked out first-time members on sale night.
+    // An unknown phone parks as PENDING — visible as reserved, expires by
+    // trigger — so a typo'd phone cannot permanently grab seats, while a real
+    // member whose number is missing from the roster still gets served.
     var isMember = isMemberPhone_(phone);
-    var newStatus = (cfg.PHASE === 'B' && !isMember) ? STATUS.PENDING : STATUS.TAKEN;
+    var newStatus = (isMember || isChazakaPhone_(phone)) ? STATUS.TAKEN : STATUS.PENDING;
 
     var now = new Date();
     seatNos.forEach(function (n) {
@@ -226,8 +241,7 @@ function claim(body) {
     // not an accumulation — the old hold frees up for Round B.
     var releasedHolds = [];
     rows.forEach(function (r, i) {
-      if (r[COLS.STATUS - 1] !== STATUS.RESERVED) return;
-      if (normPhone_(r[COLS.CHAZAKA_PHONE - 1]) !== phone) return;
+      if (!holdIsMine(r)) return;
       if (seatNos.indexOf(Number(r[COLS.SEAT_NO - 1])) !== -1) return;
       sh.getRange(i + 2, COLS.STATUS).setValue(STATUS.FREE);
       sh.getRange(i + 2, COLS.CHAZAKA_NAME, 1, 2).setValues([['', '']]);
@@ -288,6 +302,30 @@ function bump_(cache, key, max, windowSec) {
 
 function isChazakaPhone_(phone) {
   return chazakaPhoneSet_()['p' + phone] === true;
+}
+
+/**
+ * The name identity a phone carries: tight keys of every approved _Chazaka
+ * row bearing this phone, expanded through HOLDER_MERGES. This is what lets a
+ * phone-verified holder act on holds the seed left name-only — same person,
+ * matched offline, before the phone ever reached the seat row.
+ */
+function chazakaNameKeysForPhone_(phone) {
+  var keys = {};
+  var sh = ss_().getSheetByName(TAB.CHAZAKA);
+  if (sh && sh.getLastRow() > 1) {
+    sh.getRange(2, 1, sh.getLastRow() - 1, CHAZAKA_HEADERS.length).getValues()
+      .forEach(function (r) {
+        var approved = String(r[7] || '') !== '';
+        var waived = r[8] === true || r[8] === 'TRUE';
+        if (!approved || waived || normPhone_(r[2]) !== phone) return;
+        var raw = String(r[3]);
+        keys[keyTight_(raw)] = true;
+        var merge = holderMergeFor_(raw);
+        if (merge) keys[keyTight_(merge.display)] = true;
+      });
+  }
+  return keys;
 }
 
 function chazakaPhoneSet_() {

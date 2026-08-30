@@ -34,6 +34,8 @@ export default function WizardPage() {
   const [phone, setPhone] = useState("");
   const [name, setName] = useState("");
   const [reservedSeats, setReservedSeats] = useState<number[]>([]);
+  /** Seats this phone already purchased — a returning buyer adding more. */
+  const [ownedSeats, setOwnedSeats] = useState<number[]>([]);
   /**
    * The keep-or-switch decision lives on the MAP screen: a holder arrives
    * with their seats preselected; tapping a different seat raises the
@@ -110,24 +112,20 @@ export default function WizardPage() {
         // The hold is phone-keyed: whichever household member they pick,
         // the reserved seats are theirs to see.
         setReservedSeats(r.reservedSeats ?? []);
+        setOwnedSeats(r.takenSeats ?? []);
         setMulti(r.candidates);
         return;
       }
       if (r.kind === "CHAZAKA" || r.kind === "MEMBER_NO_CHAZAKA") {
         setName(r.name);
         setReservedSeats(r.reservedSeats ?? []);
+        setOwnedSeats(r.takenSeats ?? []);
         setStep(1);
         return;
       }
-      // UNKNOWN
-      if (phase === "A") {
-        setLookupMsg("המספר לא נמצא במערכת. מילאת בעבר את שאלון פרטי המתפלל? אם לא — מלא אותו עכשיו, והמערכת תזהה אותך אוטומטית תוך שעה. אפשר גם לפנות לגבאי בוואטסאפ.");
-      } else {
-        // Round B welcomes everyone; they just type their name at the next step.
-        setName("");
-        setReservedSeats([]);
-        setStep(1);
-      }
+      // UNKNOWN — the member form is the self-service path: submitting it
+      // connects the phone within seconds, and "בדוק שוב" picks it up.
+      setLookupMsg("המספר לא נמצא במערכת. מילאת בעבר את שאלון פרטי המתפלל? אם לא — מלא אותו עכשיו, המערכת תזהה אותך מיד לאחר השליחה. אפשר גם לפנות לגבאי בוואטסאפ.");
     } catch {
       setLookupMsg("שגיאת תקשורת, נסה שוב");
     } finally {
@@ -182,7 +180,7 @@ export default function WizardPage() {
         return cur;
       }
       if (cur.length > 0 && sectionOf(sel.seatNo) !== sectionOf(cur[0])) {
-        setNotice("רכישה אחת נשארת באזור אחד — גברים או עזרת נשים. סיים את הרכישה הזו ואז בצע רכישה נוספת.");
+        setNotice("רכישה אחת נשארת באזור אחד — גברים או עזרת נשים. אשר קודם את המקומות שבחרת; מיד אחרי האישור יופיע כפתור להוספת מקומות באזור השני.");
         return cur;
       }
 
@@ -311,7 +309,7 @@ export default function WizardPage() {
           setNotice(`המקום השני חייב להיות מול הראשון${data.pairSeatNo ? ` — מקום ${data.pairSeatNo}` : ""}.`);
           break;
         case "MIXED_SECTION":
-          setNotice("רכישה אחת נשארת באזור אחד — גברים או עזרת נשים.");
+          setNotice("רכישה אחת נשארת באזור אחד — גברים או עזרת נשים. אשר קודם את המקומות באזור הזה; מיד אחרי האישור יופיע כפתור להוספת מקומות באזור השני.");
           break;
         case "SHAPE_ADJACENT":
           setNotice(
@@ -322,9 +320,6 @@ export default function WizardPage() {
           break;
         case "CAP_REACHED":
           setNotice(`תקרה: עד ${data.cap} מקומות לטלפון.`);
-          break;
-        case "ROUND_A_NOT_YOURS":
-          setNotice("בסבב הנוכחי בוחרים רק בעלי חזקה.");
           break;
         case "SALE_CLOSED":
           setNotice("המכירה סגורה כרגע.");
@@ -407,7 +402,7 @@ export default function WizardPage() {
             <h2 className="text-xl font-bold">שלום 👋</h2>
             <p className="mt-1 text-sm opacity-60">
               {phase === "A"
-                ? "סבב ראשון — בעלי מקום משנה שעברה. הכנס טלפון ונאתר את המקום השמור לך."
+                ? "הכנס טלפון — לבעלי מקום משנה שעברה נאתר את המקום השמור, וכל מתפלל מוזמן לבחור מקום פנוי."
                 : "הכנס מספר טלפון כדי להתחיל."}
             </p>
           </div>
@@ -480,6 +475,13 @@ export default function WizardPage() {
         <section className="card step-in flex flex-col gap-4 p-5">
           <div>
             <h2 className="text-xl font-bold">{name ? `שלום ${name.split(" ")[0]}!` : "פרטים אישיים"}</h2>
+            {ownedSeats.length > 0 && (
+              <div className="pill pill-info mt-2 step-in">
+                ✓ כבר {ownedSeats.length === 1 ? "רשום על שמך מקום" : "רשומים על שמך מקומות"}{" "}
+                <b className="tnum">{ownedSeats.join(", ")}</b> — אפשר להוסיף מקומות נוספים
+                (למשל בעזרת הנשים) בהמשך התהליך.
+              </div>
+            )}
             {reservedSeats.length > 0 && (
               <div className="pill pill-hold mt-2 step-in">
                 🪑 {reservedSeats.length === 1 ? "המקום שלך" : "המקומות שלך"} משנה שעברה —{" "}
@@ -701,6 +703,25 @@ export default function WizardPage() {
           <p className="text-xs opacity-50">
             אפשר לשלם גם מאוחר יותר — המקום כבר רשום על שמך.
           </p>
+          {/* One purchase stays inside one section, so women's-section chairs
+              are a SECOND purchase — offered here instead of forcing a fresh
+              login (which is where the sale-night lockouts happened). */}
+          <button
+            onClick={() => {
+              setOwnedSeats((cur) => [...new Set([...cur, ...claimedSeats])].sort((a, b) => a - b));
+              setReservedSeats([]);
+              setSelected([]);
+              setSwitchAck(false);
+              setPendingSwitch(null);
+              setNotice("");
+              requestIdRef.current = `c-${crypto.randomUUID()}`;
+              poll();
+              setStep(3);
+            }}
+            className="rounded-full border-2 border-brand-maroon/40 bg-white px-5 py-2.5 font-bold text-brand-maroon"
+          >
+            ➕ לבחירת מקומות נוספים — למשל בעזרת הנשים
+          </button>
           {layout && (
             <div className="w-full">
               <div className="self-center" style={{ width: "min(100vw - 3rem, 1100px)" }}>
