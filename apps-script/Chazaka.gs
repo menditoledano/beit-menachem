@@ -174,6 +174,9 @@ var HOLDER_MERGES = [
   { display: 'טולדנו', phoneFrom: 'טולדנו', cells: ['טולדנו', 'יוסף יצחק טולדנו'] },
   { display: 'רייניץ', phoneFrom: 'נפתלי רייניץ', cells: ['נפתלי רייניץ', 'שניאור רייניץ', 'שניאור זלמן רייניץ'] },
   { display: 'מארק', phoneFrom: 'חזקי מארק', cells: ['חזקי מארק', 'מנחם מארק', 'צבי מארק'] },
+  // Not a family merge — a spelling repair: the old map's list misspells the
+  // surname (נ/ש swapped), and that misspelling is _Chazaka's sourceRaw key.
+  { display: 'אביהו קירשנבאום', phoneFrom: 'אביהו קירנשבאום', cells: ['אביהו קירשנבאום', 'אביהו קירנשבאום'] },
 ];
 
 /** Cell name -> {display, phoneKey} when part of a merge, else null. */
