@@ -122,7 +122,10 @@ function gabbaiAction(body) {
         case 'assign':
           sh.getRange(rowIdx, COLS.STATUS, 1, 7).setValues([[
             STATUS.TAKEN,
-            String(body.name || ''), normPhone_(body.phone) || String(body.phone || ''),
+            // An unparseable phone stays EMPTY — falling back to the raw text
+            // used to plant names in the phone column, breaking lookup and
+            // per-phone pricing for that holder.
+            String(body.name || ''), normPhone_(body.phone),
             String(body.email || ''), new Date(), false, 'gabbai-assign',
           ]]);
           touched.push(n);
