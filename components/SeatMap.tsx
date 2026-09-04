@@ -13,7 +13,7 @@
  * Never do arithmetic on scrollLeft here; engines disagree on its sign in RTL.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CompiledLayout, SeatMapPayload } from "@/lib/domain";
 
 export interface SeatSelection {
@@ -134,12 +134,14 @@ export function SeatMap({
   }, [applyZoom]);
 
   // Opening view: the whole hall at once — orientation first, detail on
-  // demand. Runs once, after the grid has painted its natural width.
+  // demand. Runs once, synchronously after the grid is laid out — not via
+  // requestAnimationFrame, which never fires in a background tab and left
+  // the map at 1:1 when opened from a WhatsApp preview.
   const didFitRef = useRef(false);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!fitOnMount || didFitRef.current) return;
     didFitRef.current = true;
-    requestAnimationFrame(() => fitToWidth());
+    fitToWidth();
   }, [fitOnMount, fitToWidth, layout]);
 
   useEffect(() => {
