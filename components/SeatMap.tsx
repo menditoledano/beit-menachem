@@ -111,25 +111,28 @@ export function SeatMap({
   const [scrollable, setScrollable] = useState(false);
   useEffect(() => {
     const el = scrollRef.current;
-    const inner = el?.firstElementChild;
-    if (!el || !inner) return;
+    if (!el) return;
     const measure = () => setScrollable(el.scrollWidth > el.clientWidth + 2);
-    // A CSS `zoom` change resizes the grid a frame later than the state
-    // flips, so observe the boxes themselves rather than the state.
+    // Re-measure on every zoom commit (the DOM already carries the new
+    // zoom when this passive effect runs) and whenever the viewport
+    // resizes. A ResizeObserver alone is blind to CSS `zoom` — the grid's
+    // own CSS box never changes, only its rendering does.
+    measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
-    ro.observe(inner);
-    measure();
     return () => ro.disconnect();
-  }, [layout]);
+  }, [zoom, layout]);
 
   const fitToWidth = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
     const inner = el.firstElementChild as HTMLElement | null;
     if (!inner) return;
-    // Natural width = rendered width divided by the current zoom.
-    const natural = inner.scrollWidth / zoomRef.current || 1;
+    // Natural width = on-screen width divided by the current zoom. NOT
+    // scrollWidth: under CSS `zoom` that is already reported unzoomed, and
+    // dividing it again shrank the hall to the minimum on every "הכל" press
+    // made after zooming in.
+    const natural = inner.getBoundingClientRect().width / zoomRef.current || 1;
     applyZoom((el.clientWidth - 8) / natural);
   }, [applyZoom]);
 
