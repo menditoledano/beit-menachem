@@ -105,6 +105,22 @@ export function SeatMap({
     setZoom(c);
   }, []);
 
+  // The edge fades only make sense when there is something to scroll to.
+  // With the hall fitted to the viewport they would just veil the entrance
+  // column on the far right — so they follow the real overflow state.
+  const [scrollable, setScrollable] = useState(false);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const measure = () => setScrollable(el.scrollWidth > el.clientWidth + 2);
+    const id = requestAnimationFrame(measure);
+    window.addEventListener("resize", measure);
+    return () => {
+      cancelAnimationFrame(id);
+      window.removeEventListener("resize", measure);
+    };
+  }, [zoom, layout]);
+
   const fitToWidth = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -199,7 +215,7 @@ export function SeatMap({
         </div>
       </div>
       <div className="relative">
-      <div className="scroll-fade">
+      <div className={scrollable ? "scroll-fade" : undefined}>
       <div
         ref={scrollRef}
         className="max-h-[74vh] overflow-auto rounded-xl"

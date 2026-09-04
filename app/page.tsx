@@ -559,9 +559,10 @@ export default function WizardPage() {
                 href={map.paymentUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-3 flex min-h-11 items-center justify-center gap-2 rounded-xl border-2 border-brand-maroon/30 bg-white font-bold text-brand-maroon"
+                className="mt-3 flex min-h-11 items-center justify-center gap-2 rounded-xl border-2 border-brand-maroon/30 bg-white px-3 py-2 text-center leading-snug font-bold text-brand-maroon"
               >
-                💳 לתשלום דמי חבר וסגירת חוב — לחץ כאן
+                <span aria-hidden="true">💳</span>
+                <span>לתשלום דמי חבר וסגירת חוב — לחץ כאן</span>
               </a>
             )}
           </div>
