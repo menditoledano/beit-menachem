@@ -111,15 +111,17 @@ export function SeatMap({
   const [scrollable, setScrollable] = useState(false);
   useEffect(() => {
     const el = scrollRef.current;
-    if (!el) return;
+    const inner = el?.firstElementChild;
+    if (!el || !inner) return;
     const measure = () => setScrollable(el.scrollWidth > el.clientWidth + 2);
-    const id = requestAnimationFrame(measure);
-    window.addEventListener("resize", measure);
-    return () => {
-      cancelAnimationFrame(id);
-      window.removeEventListener("resize", measure);
-    };
-  }, [zoom, layout]);
+    // A CSS `zoom` change resizes the grid a frame later than the state
+    // flips, so observe the boxes themselves rather than the state.
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    ro.observe(inner);
+    measure();
+    return () => ro.disconnect();
+  }, [layout]);
 
   const fitToWidth = useCallback(() => {
     const el = scrollRef.current;
