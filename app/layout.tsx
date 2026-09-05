@@ -8,6 +8,7 @@ const heebo = Heebo({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://beit-menachem.vercel.app"),
   title: 'מקומות — בית מנחם, גני איילון',
   description: 'בחירת מקומות לשנת תשפ"ז בבית הכנסת חב"ד "בית מנחם", גני איילון',
 };
