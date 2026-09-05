@@ -360,7 +360,7 @@ export default function WizardPage() {
     setMoveTo(null);
     setSelected([]);
     setPendingSwitch(null);
-    setNotice(ownedSeats.length === 1 ? "" : "לחץ על המקום שלך (זהב) שברצונך להחליף.");
+    setNotice("");
     requestIdRef.current = `m-${crypto.randomUUID()}`;
     setStep(3);
   };
