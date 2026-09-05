@@ -60,6 +60,8 @@ function doPost(e) {
         return json_({ ok: true, result: lookup(body) });
       case 'claim':
         return json_(claim(body));
+      case 'move':
+        return json_(move(body));
       case 'installTriggers':
         return json_({ ok: true, result: installTriggers() });
       case 'setup':

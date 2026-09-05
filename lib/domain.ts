@@ -127,6 +127,8 @@ export type ClaimFailureCode =
   | "BAD_PHONE"
   | "BAD_INPUT"
   | "TAKEN"
+  /** move only: the source seat is not held by this phone. */
+  | "NOT_YOURS"
   | "RESERVED_FOR_OTHER"
   | "BUSY"
   | "CAP_REACHED"
@@ -158,6 +160,21 @@ export type ClaimResponse =
       cap?: number;
       held?: number;
     };
+
+/**
+ * A buyer swapping one of their own seats for a free one in the same
+ * section. Rejections reuse the claim codes; NOT_YOURS is the move-only one.
+ */
+export interface MoveRequest {
+  requestId: string;
+  phone: string;
+  fromSeatNo: number;
+  toSeatNo: number;
+}
+
+export type MoveResponse =
+  | { ok: true; fromSeatNo: number; toSeatNo: number; paid: boolean; seats: number[] }
+  | { ok: false; code: ClaimFailureCode; holder?: string; pairSeatNo?: number; suggestions?: number[]; seatNo?: number };
 
 /**
  * 150 for the first seat, +50 for each additional. Capped at three seats, so

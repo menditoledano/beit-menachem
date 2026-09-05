@@ -144,61 +144,8 @@ function claim(body) {
     var allMine = seatNos.every(function (n) { return reservedForMe(bySeat[n].row); });
 
     if (!allMine) {
-      // A single seat is always a valid purchase, either side of the table —
-      // the gabbai's rule constrains only MULTI-seat purchases, so one family
-      // cannot take a same-side row while leaving nobody opposite.
-      if (seatNos.length > 1) {
-        // 2-3 seats: exactly one across-pair, plus (optionally) one adjacent.
-        var pairFound = null;
-        for (var a = 0; a < seatNos.length && !pairFound; a++) {
-          var pn = Number(bySeat[seatNos[a]].row[COLS.PAIR - 1]);
-          if (seatNos.indexOf(pn) !== -1) pairFound = [seatNos[a], pn];
-        }
-        if (!pairFound) {
-          var wantPair = Number(bySeat[seatNos[0]].row[COLS.PAIR - 1]);
-          return rej('SHAPE_PAIR_FIRST', {
-            seatNo: seatNos[0], pairSeatNo: wantPair,
-          });
-        }
-        var extras = seatNos.filter(function (n) {
-          return n !== pairFound[0] && n !== pairFound[1];
-        });
-        // A third seat must sit on the ARK-FACING side, adjacent to the
-        // pair's facing member. Growth is facing-first by design: a back-row
-        // seat must never be sold without its opposite, so the extra chair
-        // opens a new pair from the facing side — its opposite stays
-        // available for the next buyer.
-        var facingOfPair = pairFound.filter(function (pnum) {
-          var pr = bySeat[pnum].row;
-          return pr[COLS.FACING - 1] === true || pr[COLS.FACING - 1] === 'TRUE';
-        })[0];
-        var adjacentOk = facingOfPair !== undefined && extras.every(function (n) {
-          var er = bySeat[n].row;
-          var facing = er[COLS.FACING - 1] === true || er[COLS.FACING - 1] === 'TRUE';
-          var pr = bySeat[facingOfPair].row;
-          return facing &&
-            String(er[COLS.TABLE_ID - 1]) === String(pr[COLS.TABLE_ID - 1]) &&
-            Math.abs(n - facingOfPair) === 1;
-        });
-        if (!adjacentOk) {
-          // Offer the valid neighbours so the client can guide, not scold.
-          var suggestions = [];
-          if (facingOfPair !== undefined) {
-            [facingOfPair - 1, facingOfPair + 1].forEach(function (n) {
-              var e2 = bySeat[n];
-              if (e2 && (e2.row[COLS.STATUS - 1] === STATUS.FREE || reservedForMe(e2.row)) &&
-                  String(e2.row[COLS.TABLE_ID - 1]) ===
-                  String(bySeat[facingOfPair].row[COLS.TABLE_ID - 1]) &&
-                  (e2.row[COLS.FACING - 1] === true || e2.row[COLS.FACING - 1] === 'TRUE')) {
-                suggestions.push(n);
-              }
-            });
-          }
-          return rej('SHAPE_ADJACENT', {
-            pair: pairFound, seatNo: extras[0], suggestions: suggestions,
-          });
-        }
-      }
+      var shapeErr = shapeError_(seatNos, bySeat, reservedForMe);
+      if (shapeErr) return rej(shapeErr.code, shapeErr.extra);
     }
 
     // Anyone may buy a FREE seat in any round — chazaka priority is enforced
@@ -285,6 +232,213 @@ function claim(body) {
   } finally {
     lock.releaseLock();
   }
+}
+
+/**
+ * Purchase shape, as the gabbai stated it: the second seat MUST be the one
+ * across the table from the first; a third must sit adjacent to that pair,
+ * on the ark-facing side. This is what prevents a family buying a whole row
+ * of ark-facing seats with nobody opposite.
+ *
+ * A single seat is always valid, either side of the table — the rule
+ * constrains only MULTI-seat holdings. Returns null when valid, otherwise
+ * {code, extra}. One rule, one place: claim() and move() both call it.
+ */
+function shapeError_(seatNos, bySeat, isMine) {
+  if (seatNos.length < 2) return null;
+  // 2-3 seats: exactly one across-pair, plus (optionally) one adjacent.
+  var pairFound = null;
+  for (var a = 0; a < seatNos.length && !pairFound; a++) {
+    var pn = Number(bySeat[seatNos[a]].row[COLS.PAIR - 1]);
+    if (seatNos.indexOf(pn) !== -1) pairFound = [seatNos[a], pn];
+  }
+  if (!pairFound) {
+    return { code: 'SHAPE_PAIR_FIRST', extra: {
+      seatNo: seatNos[0], pairSeatNo: Number(bySeat[seatNos[0]].row[COLS.PAIR - 1]),
+    } };
+  }
+  var extras = seatNos.filter(function (n) {
+    return n !== pairFound[0] && n !== pairFound[1];
+  });
+  // A third seat must sit on the ARK-FACING side, adjacent to the pair's
+  // facing member. Growth is facing-first by design: a back-row seat must
+  // never be sold without its opposite, so the extra chair opens a new pair
+  // from the facing side — its opposite stays available for the next buyer.
+  var isFacing = function (r) { return r[COLS.FACING - 1] === true || r[COLS.FACING - 1] === 'TRUE'; };
+  var facingOfPair = pairFound.filter(function (pnum) { return isFacing(bySeat[pnum].row); })[0];
+  var adjacentOk = facingOfPair !== undefined && extras.every(function (n) {
+    var er = bySeat[n].row;
+    var pr = bySeat[facingOfPair].row;
+    return isFacing(er) &&
+      String(er[COLS.TABLE_ID - 1]) === String(pr[COLS.TABLE_ID - 1]) &&
+      Math.abs(n - facingOfPair) === 1;
+  });
+  if (adjacentOk) return null;
+  // Offer the valid neighbours so the client can guide, not scold.
+  var suggestions = [];
+  if (facingOfPair !== undefined) {
+    [facingOfPair - 1, facingOfPair + 1].forEach(function (n) {
+      var e2 = bySeat[n];
+      if (e2 && (e2.row[COLS.STATUS - 1] === STATUS.FREE || isMine(e2.row)) &&
+          String(e2.row[COLS.TABLE_ID - 1]) ===
+          String(bySeat[facingOfPair].row[COLS.TABLE_ID - 1]) &&
+          isFacing(e2.row)) {
+        suggestions.push(n);
+      }
+    });
+  }
+  return { code: 'SHAPE_ADJACENT', extra: {
+    pair: pairFound, seatNo: extras[0], suggestions: suggestions,
+  } };
+}
+
+/**
+ * A buyer swaps one of their own seats for a FREE one. The only self-service
+ * change to a taken seat: a bare release stays gabbai-only, so the worst a
+ * guessed phone can do is shuffle someone within the same section — and the
+ * owner hears about it by email, exactly like a claim.
+ *
+ * Same section only (the price ladder and the cap are per section, so the
+ * amount owed does not change), paid flag rides along, and the resulting
+ * holding must still satisfy the purchase shape.
+ */
+function move(body) {
+  var cache = CacheService.getScriptCache();
+  var phone = normPhone_(body.phone);
+  var from = Number(body.fromSeatNo);
+  var to = Number(body.toSeatNo);
+  var reqId = String(body.requestId || '').slice(0, 80);
+  var ip = String(body.ip || '');
+
+  if (!(from >= 1) || !(to >= 1) || from === to) return { ok: false, code: 'BAD_SEAT' };
+  if (!phone) return { ok: false, code: 'BAD_PHONE' };
+  if (!reqId) return { ok: false, code: 'BAD_INPUT' };
+
+  var hit = cache.get('req:' + reqId);
+  if (hit) return JSON.parse(hit);
+
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(8000)) {
+    return { ok: false, code: 'BUSY', retryAfterMs: 700 + Math.floor(Math.random() * 900) };
+  }
+
+  var cfg = null;
+  var rej = function (code, extra) {
+    logAction_('REJECT', from + '>' + to, '', phone,
+      String((cfg && cfg.PHASE) || ''), code, extra ? JSON.stringify(extra) : '', ip);
+    return fail_(cache, reqId, code, extra);
+  };
+
+  try {
+    var again = cache.get('req:' + reqId);
+    if (again) return JSON.parse(again);
+
+    cfg = getConfig_();
+    if (cfg.MODE !== 'OPEN') return rej('SALE_CLOSED');
+    if (!bump_(cache, 'ph:' + phone, Number(cfg.BURST_PER_PHONE || 3), 60)) {
+      return rej('TOO_FAST', { retryAfterMs: 30000 });
+    }
+
+    var sh = sheet_(TAB.SEATS);
+    var lastRow = sh.getLastRow();
+    if (lastRow < 2) return rej('SALE_CLOSED');
+    var rows = sh.getRange(2, 1, lastRow - 1, SEAT_WIDTH).getValues();
+    var bySeat = {};
+    rows.forEach(function (r, i) { bySeat[Number(r[COLS.SEAT_NO - 1])] = { row: r, idx: i }; });
+
+    var src = bySeat[from];
+    var dst = bySeat[to];
+    if (!src || !dst) return rej('BAD_SEAT');
+
+    var srcStatus = src.row[COLS.STATUS - 1];
+    if ((srcStatus !== STATUS.TAKEN && srcStatus !== STATUS.PENDING) ||
+        normPhone_(src.row[COLS.PHONE - 1]) !== phone) {
+      return rej('NOT_YOURS', { seatNo: from });
+    }
+    // FREE only — a hold, even the caller's own, goes through claim().
+    if (dst.row[COLS.STATUS - 1] !== STATUS.FREE) {
+      return rej('TAKEN', {
+        seatNo: to, holder: String(dst.row[COLS.NAME - 1] || '').split(' ')[0],
+      });
+    }
+    var section = String(src.row[COLS.ZONE - 1]);
+    if (String(dst.row[COLS.ZONE - 1]) !== section) return rej('MIXED_SECTION');
+
+    // The holding after the swap must still be a legal shape — unless it
+    // never was one: a chazaka position confirmed as-is, or a gabbai
+    // assignment, predates the rule and may be rearranged freely.
+    var others = rows.filter(function (r) {
+      return normPhone_(r[COLS.PHONE - 1]) === phone &&
+        r[COLS.STATUS - 1] !== STATUS.FREE &&
+        String(r[COLS.ZONE - 1]) === section &&
+        Number(r[COLS.SEAT_NO - 1]) !== from;
+    }).map(function (r) { return Number(r[COLS.SEAT_NO - 1]); });
+    var never = function () { return false; };
+    var wasLegal = shapeError_(others.concat([from]), bySeat, never) === null;
+    var after = others.concat([to]);
+    if (wasLegal) {
+      var shapeErr = shapeError_(after, bySeat, never);
+      if (shapeErr) return rej(shapeErr.code, shapeErr.extra);
+    }
+
+    var name = String(src.row[COLS.NAME - 1] || '');
+    var email = String(src.row[COLS.EMAIL - 1] || '');
+    var paid = src.row[COLS.PAID - 1] === true || src.row[COLS.PAID - 1] === 'TRUE';
+    sh.getRange(dst.idx + 2, COLS.STATUS, 1, 8).setValues([[
+      srcStatus, name, phone, email, new Date(), paid, reqId,
+      String(src.row[COLS.NOTE - 1] || ''),
+    ]]);
+    sh.getRange(src.idx + 2, COLS.STATUS, 1, 8)
+      .setValues([[STATUS.FREE, '', '', '', '', false, '', '']]);
+    // The vacated chair carries no stale chazaka claim — the hold, if there
+    // was one, was consumed when it was bought.
+    sh.getRange(src.idx + 2, COLS.CHAZAKA_NAME, 1, 2).setValues([['', '']]);
+
+    logAction_('MOVE', from + '>' + to, name, phone, cfg.PHASE, 'ok',
+      paid ? 'paid' : '', ip);
+    SpreadsheetApp.flush();
+
+    var res = { ok: true, fromSeatNo: from, toSeatNo: to, paid: paid, seats: after.sort(function (a, b) { return a - b; }) };
+    cache.put('req:' + reqId, JSON.stringify(res), 900);
+    cache.remove('seatmap');
+
+    try { sendMoveEmail_(name, phone, email, from, to, isMemberPhone_(phone)); } catch (e) {
+      logAction_('EMAIL', from + '>' + to, name, phone, cfg.PHASE, 'fail', String(e), '');
+    }
+    return res;
+  } catch (err) {
+    logAction_('MOVE', from + '>' + to, '', phone, '', 'error', String(err), ip);
+    return { ok: false, code: 'SERVER_ERROR' };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** Same impersonation alarm as the claim mail: the address on file, not the typed one. */
+function sendMoveEmail_(name, phone, typedEmail, from, to, isMember) {
+  var target = onFileEmail_(phone, isMember) || typedEmail;
+  if (!target) return;
+  MailApp.sendEmail({
+    to: target,
+    subject: 'החלפת מקום — בית מנחם גני איילון',
+    htmlBody:
+      '<div dir="rtl">שלום ' + name + ',<br><br>' +
+      'המקום שלך הוחלף: ממקום <b>' + from + '</b> למקום <b>' + to + '</b>.<br>' +
+      'המקום הקודם שוחרר. התשלום, אם בוצע, עבר למקום החדש.<br>' +
+      '<br>אם לא אתה ביצעת את ההחלפה — השב למייל זה או פנה לגבאי מיד.<br><br>' +
+      'בית הכנסת חב"ד "בית מנחם", גני איילון</div>',
+  });
+}
+
+function onFileEmail_(phone, isMember) {
+  if (!isMember) return '';
+  var sh = sheet_(TAB.MEMBERS);
+  if (sh.getLastRow() < 2) return '';
+  var rows = sh.getRange(2, 1, sh.getLastRow() - 1, MEMBER_HEADERS.length).getValues();
+  for (var i = 0; i < rows.length; i++) {
+    if (normPhone_(rows[i][4]) === phone && rows[i][5]) return String(rows[i][5]);
+  }
+  return '';
 }
 
 /** Deterministic rejections are cached — same requestId, same verdict. */
@@ -377,15 +531,7 @@ function isMemberPhone_(phone) {
  * name and the real owner hears about it within seconds.
  */
 function sendClaimEmail_(name, phone, typedEmail, seatNos, total, isMember) {
-  var to = '';
-  if (isMember) {
-    var sh = sheet_(TAB.MEMBERS);
-    var rows = sh.getRange(2, 1, sh.getLastRow() - 1, MEMBER_HEADERS.length).getValues();
-    for (var i = 0; i < rows.length; i++) {
-      if (normPhone_(rows[i][4]) === phone && rows[i][5]) { to = String(rows[i][5]); break; }
-    }
-  }
-  if (!to) to = typedEmail;
+  var to = onFileEmail_(phone, isMember) || typedEmail;
   if (!to) return;
 
   var cfgMail = getConfig_();

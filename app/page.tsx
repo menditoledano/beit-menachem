@@ -16,6 +16,7 @@ import type {
   ClaimResponse,
   CompiledLayout,
   LookupResult,
+  MoveResponse,
   RegistrationData,
   SeatMapPayload,
 } from "@/lib/domain";
@@ -62,6 +63,19 @@ export default function WizardPage() {
   const [notice, setNotice] = useState("");
   const [claimBusy, setClaimBusy] = useState(false);
   const [claimedSeats, setClaimedSeats] = useState<number[]>([]);
+  /**
+   * Swap mode: a returning buyer trades one of their own seats (gold on the
+   * map) for a free one in the same section. No registration step — they
+   * already registered when they bought — and no bare release: the old seat
+   * frees only as the new one is taken.
+   */
+  const [moveMode, setMoveMode] = useState(false);
+  const [moveFrom, setMoveFrom] = useState<number | null>(null);
+  const [moveTo, setMoveTo] = useState<number | null>(null);
+  const [moveBusy, setMoveBusy] = useState(false);
+  /** Set on the done screen after a swap; null after a purchase. */
+  const [movedFrom, setMovedFrom] = useState<number | null>(null);
+  const [movePaid, setMovePaid] = useState(false);
   const layoutVersionRef = useRef("");
   const requestIdRef = useRef("");
 
@@ -286,6 +300,7 @@ export default function WizardPage() {
       const data: ClaimResponse = await res.json();
       if (data.ok) {
         setClaimedSeats(data.seatNos);
+        setMovedFrom(null);
         setStep(4);
         poll();
         return;
@@ -335,6 +350,115 @@ export default function WizardPage() {
       setNotice("שגיאת תקשורת. נסה שוב.");
     } finally {
       setClaimBusy(false);
+    }
+  };
+
+  /* ---------- swap: one owned seat for a free one ---------- */
+  const startMove = () => {
+    setMoveMode(true);
+    setMoveFrom(ownedSeats.length === 1 ? ownedSeats[0] : null);
+    setMoveTo(null);
+    setSelected([]);
+    setPendingSwitch(null);
+    setNotice(ownedSeats.length === 1 ? "" : "לחץ על המקום שלך (זהב) שברצונך להחליף.");
+    requestIdRef.current = `m-${crypto.randomUUID()}`;
+    setStep(3);
+  };
+  const cancelMove = () => {
+    setMoveMode(false);
+    setMoveFrom(null);
+    setMoveTo(null);
+    setNotice("");
+    setStep(1);
+  };
+  const moveToggle = (sel: SeatSelection) => {
+    setNotice("");
+    if (ownedSeats.includes(sel.seatNo)) {
+      setMoveFrom(sel.seatNo);
+      setMoveTo(null);
+      setNotice(`מחליפים את מקום ${sel.seatNo}. עכשיו לחץ על מקום פנוי באותו אזור.`);
+      return;
+    }
+    if (sel.seatNo === moveTo) { setMoveTo(null); return; }
+    if (moveFrom === null) {
+      setNotice("קודם לחץ על המקום שלך (זהב) שברצונך להחליף.");
+      return;
+    }
+    if ((map?.status[String(sel.seatNo)] ?? "0") !== "0") return;
+    if (sectionOf(sel.seatNo) !== sectionOf(moveFrom)) {
+      setNotice("החלפה נשארת באותו אזור — גברים לגברים, עזרת נשים לעזרת נשים.");
+      return;
+    }
+    setMoveTo(sel.seatNo);
+  };
+  const submitMove = async () => {
+    if (moveFrom === null || moveTo === null) return;
+    setMoveBusy(true);
+    setNotice("");
+    try {
+      const res = await fetch("/api/move", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requestId: requestIdRef.current,
+          phone: normalizePhone(phone),
+          fromSeatNo: moveFrom,
+          toSeatNo: moveTo,
+        }),
+      });
+      const data: MoveResponse = await res.json();
+      if (data.ok) {
+        setOwnedSeats((cur) =>
+          [...cur.filter((n) => n !== data.fromSeatNo), data.toSeatNo].sort((a, b) => a - b));
+        setClaimedSeats([data.toSeatNo]);
+        setMovedFrom(data.fromSeatNo);
+        setMovePaid(data.paid);
+        setMoveMode(false);
+        setMoveFrom(null);
+        setMoveTo(null);
+        setStep(4);
+        poll();
+        return;
+      }
+      // A fresh id for the retry: the rejected one is cached server-side.
+      requestIdRef.current = `m-${crypto.randomUUID()}`;
+      switch (data.code) {
+        case "TAKEN":
+          setNotice("המקום נתפס זה עתה. בחר מקום פנוי אחר.");
+          setMoveTo(null);
+          poll();
+          break;
+        case "NOT_YOURS":
+          setNotice("המקום הזה לא רשום על הטלפון שלך. רענן את הדף ונסה שוב.");
+          poll();
+          break;
+        case "MIXED_SECTION":
+          setNotice("החלפה נשארת באותו אזור — גברים לגברים, עזרת נשים לעזרת נשים.");
+          setMoveTo(null);
+          break;
+        case "SHAPE_PAIR_FIRST":
+          setNotice(`אחרי ההחלפה המקומות שלך חייבים להיות זה מול זה${data.pairSeatNo ? ` — למשל מקום ${data.pairSeatNo}` : ""}.`);
+          setMoveTo(null);
+          break;
+        case "SHAPE_ADJACENT":
+          setNotice(`הכיסא השלישי חייב להיות בצד הפונה לארון, צמוד לזוג${
+            data.suggestions?.length ? ` — למשל מקום ${data.suggestions.join(" או ")}` : ""}.`);
+          setMoveTo(null);
+          break;
+        case "SALE_CLOSED":
+          setNotice("המכירה סגורה כרגע.");
+          break;
+        case "BUSY":
+        case "TOO_FAST":
+          setNotice("המערכת עמוסה, נסה שוב בעוד רגע.");
+          break;
+        default:
+          setNotice("שגיאה זמנית. נסה שוב.");
+      }
+    } catch {
+      setNotice("שגיאת תקשורת. נסה שוב.");
+    } finally {
+      setMoveBusy(false);
     }
   };
 
@@ -480,6 +604,13 @@ export default function WizardPage() {
                 ✓ כבר {ownedSeats.length === 1 ? "רשום על שמך מקום" : "רשומים על שמך מקומות"}{" "}
                 <b className="tnum">{ownedSeats.join(", ")}</b> — אפשר להוסיף מקומות נוספים
                 (למשל בעזרת הנשים) בהמשך התהליך.
+                <button
+                  onClick={startMove}
+                  disabled={mode !== "OPEN"}
+                  className="mt-2 flex w-max items-center gap-2 rounded-full border-2 border-brand-maroon/40 bg-white px-4 py-2 font-bold text-brand-maroon disabled:opacity-60"
+                >
+                  🔁 להחליף מקום במקום פנוי אחר
+                </button>
               </div>
             )}
             {reservedSeats.length > 0 && (
@@ -594,7 +725,16 @@ export default function WizardPage() {
           className="step-in flex flex-col gap-3 self-center"
           style={{ width: "min(100vw - 1.5rem, 1100px)" }}
         >
-          {reservedSeats.length > 0 && !pendingSwitch && (
+          {moveMode && (
+            <div className="pill pill-hold" aria-live="polite">
+              🔁 {moveFrom === null
+                ? "לחץ על המקום שלך (זהב) שברצונך להחליף, ואז על מקום פנוי."
+                : moveTo === null
+                  ? <>מחליפים את מקום <b className="tnum">{moveFrom}</b> — לחץ על מקום פנוי באותו אזור.</>
+                  : <>מקום <b className="tnum">{moveFrom}</b> יוחלף במקום <b className="tnum">{moveTo}</b>. המקום הישן ישוחרר עם האישור.</>}
+            </div>
+          )}
+          {!moveMode && reservedSeats.length > 0 && !pendingSwitch && (
             <div className="pill pill-hold" aria-live="polite">
               {selected.some((n) => reservedSeats.includes(n))
                 ? <>🪑 {reservedSeats.length === 1 ? "המקום שלך מסומן בזהב" : "המקומות שלך מסומנים בזהב"} — אישור סופי למטה, או לחיצה על מקום פנוי כדי לעבור.</>
@@ -632,12 +772,12 @@ export default function WizardPage() {
               <SeatMap
                 layout={layout}
                 map={map}
-                selected={selected}
+                selected={moveMode ? (moveTo === null ? [] : [moveTo]) : selected}
                 myPhone={normalizePhone(phone)}
-                myReservedSeats={reservedSeats}
-                focusSeat={reservedSeats[0] ?? selected[0]}
+                myReservedSeats={moveMode ? ownedSeats : reservedSeats}
+                focusSeat={moveMode ? (moveFrom ?? ownedSeats[0]) : (reservedSeats[0] ?? selected[0])}
                 fitOnMount
-                onToggleSeat={toggleSeat}
+                onToggleSeat={moveMode ? moveToggle : toggleSeat}
               />
             ) : (
               <p className="p-8 text-center opacity-50">טוען את מפת האולם…</p>
@@ -646,7 +786,20 @@ export default function WizardPage() {
 
           <div className="safe-bottom sticky bottom-0 z-10 border-t border-black/5 bg-white/80 px-4 pt-2 backdrop-blur-xl">
             <div className="mx-auto flex max-w-lg flex-col gap-2">
-              {selected.length === 0 ? (
+              {moveMode ? (
+                <>
+                  {moveFrom !== null && moveTo !== null ? (
+                    <button onClick={submitMove} disabled={moveBusy} className="btn-primary">
+                      {moveBusy ? "מחליף…" : `אישור ההחלפה — ${moveFrom} ← ${moveTo}`}
+                    </button>
+                  ) : (
+                    <p className="pb-1 text-center text-sm opacity-60">
+                      {moveFrom === null ? "לחץ על המקום שלך (זהב) להחלפה" : "לחץ על מקום פנוי במפה"}
+                    </p>
+                  )}
+                  <button onClick={cancelMove} className="btn-ghost self-start">→ ביטול ההחלפה</button>
+                </>
+              ) : selected.length === 0 ? (
                 /* Nothing picked yet: a hint line, not a dead button. */
                 <p className="pb-1 text-center text-sm opacity-60">
                   לחץ על מקום פנוי במפה כדי לבחור
@@ -664,7 +817,7 @@ export default function WizardPage() {
                   </button>
                 </>
               )}
-              {back(2)}
+              {!moveMode && back(2)}
             </div>
           </div>
         </section>
@@ -677,7 +830,15 @@ export default function WizardPage() {
             ✓
           </span>
           <div>
-            <h2 className="text-2xl font-bold text-brand-maroon">המקום שלך נרשם!</h2>
+            <h2 className="text-2xl font-bold text-brand-maroon">
+              {movedFrom !== null ? "המקום הוחלף!" : "המקום שלך נרשם!"}
+            </h2>
+            {movedFrom !== null && (
+              <p className="mt-1 text-sm opacity-70">
+                מקום <b className="tnum">{movedFrom}</b> שוחרר
+                {movePaid ? " — התשלום עבר למקום החדש." : "."}
+              </p>
+            )}
             <p className="mt-2 flex flex-wrap items-center justify-center gap-1.5">
               {claimedSeats.map((n) => (
                 <span key={n}
@@ -691,24 +852,26 @@ export default function WizardPage() {
               {email ? " · אישור נשלח למייל" : ""}
             </p>
           </div>
-          {map?.paymentUrl && (
+          {map?.paymentUrl && !(movedFrom !== null && movePaid) && (
             <a
               href={map.paymentUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="btn-primary max-w-xs no-underline"
             >
-              💳 לתשלום מאובטח — {priceFor(claimedSeats)} ₪
+              💳 לתשלום מאובטח{movedFrom === null ? ` — ${priceFor(claimedSeats)} ₪` : ""}
             </a>
           )}
           {/* The seat is provisional until proof of payment reaches the
               gabbai — the deep link opens WhatsApp with the message ready,
               so all the buyer adds is the receipt itself. */}
-          <div className="pill pill-warn text-right" aria-live="polite">
-            <b>חשוב:</b> לאחר התשלום יש לשלוח לגבאי בוואטסאפ אסמכתא על
-            התשלום (או צילום הוראת הקבע). ללא אסמכתא — המקום יתפנה.
-          </div>
-          {map?.gabbaiPhone && (
+          {!(movedFrom !== null && movePaid) && (
+            <div className="pill pill-warn text-right" aria-live="polite">
+              <b>חשוב:</b> לאחר התשלום יש לשלוח לגבאי בוואטסאפ אסמכתא על
+              התשלום (או צילום הוראת הקבע). ללא אסמכתא — המקום יתפנה.
+            </div>
+          )}
+          {map?.gabbaiPhone && !(movedFrom !== null && movePaid) && (
             <a
               href={`https://wa.me/${map.gabbaiPhone}?text=${encodeURIComponent(
                 `שלום, כאן ${name}. שילמתי על מקום/ות ${[...claimedSeats].sort((a, b) => a - b).join(", ")} בסך ${priceFor(claimedSeats)} ₪ — מצרף אסמכתא / הוראת קבע.`,
@@ -726,6 +889,7 @@ export default function WizardPage() {
           <button
             onClick={() => {
               setOwnedSeats((cur) => [...new Set([...cur, ...claimedSeats])].sort((a, b) => a - b));
+              setMovedFrom(null);
               setReservedSeats([]);
               setSelected([]);
               setSwitchAck(false);
