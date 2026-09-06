@@ -12,6 +12,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import type {
   ClaimResponse,
   CompiledLayout,
@@ -592,6 +593,14 @@ export default function WizardPage() {
             </div>
           )}
         </section>
+      )}
+      {step === 0 && (
+        <Link
+          href="/hall"
+          className="step-in self-center rounded-full border-2 border-brand-maroon/30 bg-white px-5 py-2 text-sm font-bold text-brand-maroon no-underline"
+        >
+          🏛️ הדמיה תלת־ממדית של האולם עם שמות בעלי המקומות
+        </Link>
       )}
 
       {/* ---------- step 1 ---------- */}
