@@ -307,7 +307,7 @@ export default function Hall3D({ cells, statusOf, onSelect, selectedSeat, classN
       if (t.split) box(0.01, 0.03, 0.74, new THREE.MeshStandardMaterial({ color: 0xd9d0c0 }), t.x, 0.77, t.z, false);
       box(t.w + 0.2, 0.012, 0.3, M.velvet, t.x, 0.766, t.z, false);   // runner
     });
-    SEATS.forEach((s) => { const bk = box(0.13, 0.03, 0.19, M.velvet, s.x, 0.775, tableZ(s.r0) + (s.facing === "a" ? 0.2 : -0.2)); bk.rotation.y = (Math.random() - 0.5) * 0.15; });
+    SEATS.forEach((s) => { const bk = box(0.13, 0.03, 0.19, M.velvet, s.x, 0.775, tableZ(s.r0) + (s.facing === "a" ? -0.2 : 0.2)); bk.rotation.y = (Math.random() - 0.5) * 0.15; });
     const seatGeo = new THREE.BoxGeometry(0.42, 0.06, 0.45);
     const backGeo = new THREE.BoxGeometry(0.4, 0.36, 0.05);
     const legGeo = new THREE.CylinderGeometry(0.014, 0.014, 0.42, 6);
@@ -329,7 +329,8 @@ export default function Hall3D({ cells, statusOf, onSelect, selectedSeat, classN
       const ring = new THREE.Mesh(ringGeo, ringMat); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.012; ring.visible = false; g.add(ring);
       const hring = new THREE.Mesh(ringGeo, hoverMat); hring.rotation.x = -Math.PI / 2; hring.position.y = 0.011; hring.visible = false; g.add(hring);
       g.position.set(s.x, 0, s.z);
-      g.rotation.y = s.facing === "a" ? Math.PI : 0;
+      // Chair back away from the table: the near row's back is toward the ark.
+      g.rotation.y = s.facing === "a" ? 0 : Math.PI;
       g.userData = { num: s.num, ring, hring };
       seat.userData.num = s.num; back.userData.num = s.num;
       scene.add(g); chairs.set(s.num, g); pickables.push(seat, back);

@@ -34,7 +34,9 @@ export function buildSeats(cells: ApiSeat[]): Seat[] {
     const r0 = facing === "a" ? c.row : c.row - 1;
     const seat: Seat = { num: c.seatNo, row: c.row, col: c.col, zone: c.zone === "נשים" ? "w" : "m", facing, r0, block: blockOf(c.col), x: 0, z: 0 };
     seat.x = seatX(seat, r0);
-    seat.z = tableZ(r0) + (facing === "a" ? 0.66 : -0.66);
+    // Same order as the 2D map: the ark-facing row (layout row r0) is the one
+    // nearer the ark, its opposite sits on the far side of the table.
+    seat.z = tableZ(r0) + (facing === "a" ? -0.66 : 0.66);
     return seat;
   });
 }
