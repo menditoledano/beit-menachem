@@ -74,7 +74,7 @@ export default function HallPage() {
 
   return (
     <main className="flex min-h-screen flex-col">
-      <header className="flex items-center justify-between gap-3 px-4 py-2">
+      <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-4 py-2">
         <div className="flex items-center gap-3">
           <Logo compact />
           <div>
