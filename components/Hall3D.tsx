@@ -1,37 +1,55 @@
 "use client";
-// 3D hall view for the seat picker. Same data as the 2D map (/api/layout + /api/seatmap), same callbacks.
+// 3D hall view. Same data as the 2D map (/api/layout + /api/seatmap), same callbacks.
 // Chairs are all one colour; status is shown by a ring on the floor under the chair.
+//
+// Navigation is built for a thumb, not a mouse: one finger pans across the
+// floor, two fingers pinch to zoom and twist to turn, and a tap on a chair
+// selects it. The orbit-style rotate lives on the right mouse button and on
+// the two on-screen arrows, so nobody flips the hall over by accident.
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { ApiSeat, Seat, buildSeats, buildTables, ELEMENTS, tableZ, R_CX, C_CX, L_CX, Z0 } from "./hall3d-geometry";
 
 export type SeatStatus = "free" | "taken" | "reserved" | "mine" | "selected";
+export type HallView = "all" | "ark" | "bimah" | "women";
 export type Hall3DProps = {
   cells: ApiSeat[];                              // layout.cells from /api/layout
   statusOf: (seatNo: number) => SeatStatus;      // derived from /api/seatmap status + your own seats + current selection
-  onToggle: (seatNo: number) => void;            // same handler the 2D squares call
-  onHover?: (seatNo: number | null) => void;
-  names?: Record<string, string>;                 // seatNo -> holder name (seatmap.holders); shown as a place card and a floating label
-  readOnly?: boolean;                             // no picking, just viewing
+  /** A tap on a chair. The 2D squares' handler in the picker; the detail card on /hall. */
+  onSelect: (seatNo: number) => void;
+  /** Chair to outline (the page's current selection). */
+  selectedSeat?: number | null;
   className?: string;
 };
 
-export default function Hall3D({ cells, statusOf, onToggle, onHover, names, readOnly, className }: Hall3DProps) {
+const VIEWS: Record<HallView, { x: number; z: number; theta: number; phi: number; radius?: number }> = {
+  all: { x: 0, z: Z0 + 12, theta: 0, phi: 0.32 },
+  ark: { x: C_CX, z: Z0 + 4, theta: 0, phi: 0.8, radius: 15 },
+  bimah: { x: C_CX, z: Z0 + 12, theta: 0, phi: 0.75, radius: 14 },
+  // Seen from the men's side, over the mechitza — from behind, the camera
+  // would sit outside the back wall.
+  women: { x: 0, z: Z0 + 20.5, theta: Math.PI, phi: 0.7, radius: 14 },
+};
+
+export default function Hall3D({ cells, statusOf, onSelect, selectedSeat, className }: Hall3DProps) {
   const mountRef = useRef<HTMLDivElement>(null);
-  const stateRef = useRef({ status: statusOf, onToggle, onHover: onHover ?? (() => {}) });
+  const stateRef = useRef({ status: statusOf, onSelect });
   const repaintRef = useRef<() => void>(() => {});
-  const namesRef = useRef<(n: Record<string, string>) => void>(() => {});
+  const selectRef = useRef<(n: number | null) => void>(() => {});
+  const viewRef = useRef<(v: HallView) => void>(() => {});
+  const zoomRef = useRef<(f: number) => void>(() => {});
+  const turnRef = useRef<(d: number) => void>(() => {});
   // Latest callbacks for the scene's event handlers, refreshed before the
   // repaint below runs (effects run in declaration order).
-  useEffect(() => { stateRef.current = { status: statusOf, onToggle, onHover: onHover ?? (() => {}) }; }, [statusOf, onToggle, onHover]);
+  useEffect(() => { stateRef.current = { status: statusOf, onSelect }; }, [statusOf, onSelect]);
 
   // status changed (poll, selection, confirmation) -> repaint rings only, no rebuild
   useEffect(() => { repaintRef.current(); }, [statusOf]);
-  useEffect(() => { namesRef.current(names ?? {}); }, [names]);
+  useEffect(() => { selectRef.current(selectedSeat ?? null); }, [selectedSeat]);
 
   useEffect(() => {
     const mount = mountRef.current; if (!mount) return;
-    const state = { status: (n: number) => stateRef.current.status(n), onToggle: (n: number) => stateRef.current.onToggle(n), onHover: (n: number | null) => stateRef.current.onHover(n) };
+    const state = { status: (n: number) => stateRef.current.status(n), onSelect: (n: number) => stateRef.current.onSelect(n) };
     const SEATS: Seat[] = buildSeats(cells);
     const TABLES = buildTables(SEATS);
     const W = mount.clientWidth, H = mount.clientHeight;
@@ -41,7 +59,7 @@ export default function Hall3D({ cells, statusOf, onToggle, onHover, names, read
 
     const camera = new THREE.PerspectiveCamera(42, W / H, 0.1, 200);
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, W < 768 ? 1.5 : 2));
     renderer.setSize(W, H);
     // ~250 chairs with soft shadows is too much for a phone GPU; phones get flat lighting.
     renderer.shadowMap.enabled = W >= 768;
@@ -318,102 +336,122 @@ export default function Hall3D({ cells, statusOf, onToggle, onHover, names, read
     });
 
 
-    // ---------- holder names: a place card on the table + a floating label above the chair ----------
-    const labelTex = (txt: string) => {
-      const c = document.createElement("canvas"); c.width = 512; c.height = 128; const ctx = c.getContext("2d")!;
-      ctx.clearRect(0, 0, 512, 128);
-      ctx.fillStyle = "rgba(255,252,245,0.92)"; ctx.beginPath(); ctx.roundRect(4, 4, 504, 120, 28); ctx.fill();
-      ctx.strokeStyle = "#c9a54a"; ctx.lineWidth = 6; ctx.stroke();
-      // The site font (Heebo via next/font) — its generated family name is only known at runtime.
-      ctx.fillStyle = "#2a1a0c"; ctx.font = `bold 62px ${getComputedStyle(document.body).fontFamily || "sans-serif"}`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.direction = "rtl";
-      let t = txt; while (ctx.measureText(t).width > 470 && t.length > 2) t = t.slice(0, -2) + "…";
-      ctx.fillText(t, 256, 66);
-      const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8; return tex;
-    };
-    const cardGeo = new THREE.PlaneGeometry(0.34, 0.085);
-    const labels = new Map<number, { card: THREE.Mesh; sprite: THREE.Sprite; text: string }>();
-    const setNames = (nm: Record<string, string>) => {
-      SEATS.forEach((st) => {
-        const text = nm[String(st.num)];
-        const cur = labels.get(st.num);
-        if (!text) { if (cur) { scene.remove(cur.card); scene.remove(cur.sprite); labels.delete(st.num); } return; }
-        if (cur && cur.text === text) return;
-        if (cur) { scene.remove(cur.card); scene.remove(cur.sprite); }
-        const tex = labelTex(text);
-        const card = new THREE.Mesh(cardGeo, new THREE.MeshStandardMaterial({ map: tex, transparent: true, roughness: 0.6, side: THREE.DoubleSide }));
-        const tz = tableZ(st.r0), edge = st.facing === "a" ? 0.30 : -0.30;   // standing card at the table edge in front of the chair
-        card.position.set(st.x, 0.80, tz + edge); card.rotation.y = st.facing === "a" ? 0 : Math.PI; card.rotation.x = -0.25 * (st.facing === "a" ? 1 : 1);
-        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
-        sprite.scale.set(0.72, 0.18, 1); sprite.position.set(st.x, 1.18, st.z); sprite.renderOrder = 10;
-        scene.add(card); scene.add(sprite);
-        labels.set(st.num, { card, sprite, text });
-      });
-    };
-    namesRef.current = setNames; setNames(names ?? {});
-
     // ---------- camera ----------
-    const target = new THREE.Vector3(0, 0.6, 0);
-    let theta = 0.25, phi = 0.85, radius = 22;
+    const target = new THREE.Vector3(0, 0.6, Z0 + 12);
+    let theta = 0, phi = 0.32, radius = 30;
+    const clamp = () => {
+      target.x = Math.min(ELEMENTS.wall, Math.max(-ELEMENTS.wall, target.x));
+      target.z = Math.min(ELEMENTS.zBack, Math.max(ELEMENTS.zFront, target.z));
+      phi = Math.min(1.45, Math.max(0.2, phi));
+      radius = Math.min(60, Math.max(3, radius));
+    };
     const updateCam = () => {
+      clamp();
       camera.position.set(target.x + radius * Math.sin(phi) * Math.sin(theta), target.y + radius * Math.cos(phi), target.z + radius * Math.sin(phi) * Math.cos(theta));
       camera.lookAt(target);
     };
-    updateCam();
-    let dragging = false, panning = false, moved = 0, lx = 0, ly = 0, pinch = 0;
-    const el = renderer.domElement;
-    el.tabIndex = 0; el.style.outline = "none";
-    const clampTarget = () => { target.x = Math.min(ELEMENTS.wall, Math.max(-ELEMENTS.wall, target.x)); target.z = Math.min(ELEMENTS.zBack, Math.max(ELEMENTS.zFront, target.z)); };
-    const pan = (dx: number, dz: number) => {
-      // move along the camera's ground-plane axes so arrows feel natural from any angle
-      const f = new THREE.Vector3(Math.sin(theta), 0, Math.cos(theta)), r = new THREE.Vector3(f.z, 0, -f.x);
-      target.addScaledVector(r, dx).addScaledVector(f, dz); clampTarget(); updateCam();
+    // Radius at which the whole tent (12 x 24 m, plus a margin) fits the
+    // viewport, whatever its aspect — portrait phones fit the long axis.
+    const fitRadius = () => {
+      const tanV = Math.tan((camera.fov * Math.PI) / 360);
+      const halfL = 13.2, halfW = 7.2;
+      // Seen from a steep angle the long axis foreshortens by cos(phi) on screen.
+      const needV = Math.max(halfL * Math.cos(phi), halfW) / tanV;
+      const needH = Math.max(halfW, halfL * Math.cos(phi)) / (tanV * camera.aspect);
+      // The tilt makes the near half loom and the far half shrink; the
+      // straight-on estimate above overshoots by about a quarter.
+      return Math.max(needV, needH) * 0.74;
     };
-    const down = (x: number, y: number, isPan: boolean) => { dragging = true; panning = isPan; moved = 0; lx = x; ly = y; el.focus(); };
+    const goView = (v: HallView) => {
+      const p = VIEWS[v];
+      target.set(p.x, 0.6, p.z); theta = p.theta; phi = p.phi;
+      radius = p.radius ?? fitRadius();
+      updateCam();
+    };
+    let fitted = W > 0 && H > 0;
+    if (fitted) goView("all");
+
+    // ---------- input ----------
+    const el = renderer.domElement;
+    el.style.touchAction = "none";
+    el.tabIndex = 0; el.style.outline = "none";
+    // Pan along the camera's ground-plane axes so a drag feels the same from any angle.
+    const pan = (dx: number, dz: number) => {
+      const f = new THREE.Vector3(Math.sin(theta), 0, Math.cos(theta)), r = new THREE.Vector3(f.z, 0, -f.x);
+      target.addScaledVector(r, dx).addScaledVector(f, dz); updateCam();
+    };
+    const zoomBy = (f: number) => { radius *= f; updateCam(); };
+    const turn = (d: number) => { theta += d; updateCam(); };
+    // Screen pixels -> metres on the floor at the current zoom.
+    const pxToM = () => (2 * radius * Math.tan((camera.fov * Math.PI) / 360)) / el.clientHeight;
+
+    let dragging = false, rotating = false, moved = 0, lx = 0, ly = 0, t0 = 0;
+    const down = (x: number, y: number, rot: boolean) => { dragging = true; rotating = rot; moved = 0; lx = x; ly = y; t0 = Date.now(); el.focus(); };
     const move = (x: number, y: number) => {
       if (!dragging) return;
       const dx = x - lx, dy = y - ly; lx = x; ly = y; moved += Math.abs(dx) + Math.abs(dy);
-      if (panning) { pan(-dx * radius * 0.0015, -dy * radius * 0.0015); return; }
-      theta -= dx * 0.006; phi = Math.min(1.5, Math.max(0.15, phi - dy * 0.006)); updateCam();
+      if (rotating) { theta -= dx * 0.006; phi -= dy * 0.006; updateCam(); return; }
+      const m = pxToM(); pan(-dx * m, -dy * m);
+    };
+    const up = (x: number, y: number) => {
+      const tap = dragging && moved < 8 && Date.now() - t0 < 400;
+      dragging = false;
+      if (tap) { const n = pick(x, y); if (n) state.onSelect(n); }
     };
     el.addEventListener("contextmenu", (e) => e.preventDefault());
     el.addEventListener("mousedown", (e) => down(e.clientX, e.clientY, e.button !== 0 || e.shiftKey));
     const onWinMove = (e: MouseEvent) => move(e.clientX, e.clientY);
-    const onWinUp = () => (dragging = false);
+    const onWinUp = (e: MouseEvent) => up(e.clientX, e.clientY);
     window.addEventListener("mousemove", onWinMove);
     window.addEventListener("mouseup", onWinUp);
-    el.addEventListener("wheel", (e) => { e.preventDefault(); radius = Math.min(55, Math.max(3, radius + e.deltaY * 0.03)); updateCam(); }, { passive: false });
+    el.addEventListener("wheel", (e) => { e.preventDefault(); zoomBy(Math.exp(e.deltaY * 0.0012)); }, { passive: false });
+
+    // Two fingers: pinch = zoom, twist = turn, centroid drift = pan.
+    let pinchD = 0, pinchA = 0, px = 0, py = 0;
+    const two = (e: TouchEvent) => {
+      const a = e.touches[0], b = e.touches[1];
+      return { d: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), ang: Math.atan2(b.clientY - a.clientY, b.clientX - a.clientX), cx: (a.clientX + b.clientX) / 2, cy: (a.clientY + b.clientY) / 2 };
+    };
+    el.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      if (e.touches.length === 1) down(e.touches[0].clientX, e.touches[0].clientY, false);
+      else if (e.touches.length === 2) { dragging = false; const t = two(e); pinchD = t.d; pinchA = t.ang; px = t.cx; py = t.cy; }
+    }, { passive: false });
+    el.addEventListener("touchmove", (e) => {
+      e.preventDefault();
+      if (e.touches.length === 1) move(e.touches[0].clientX, e.touches[0].clientY);
+      else if (e.touches.length === 2) {
+        const t = two(e);
+        radius *= pinchD / t.d; pinchD = t.d;
+        let da = t.ang - pinchA; if (da > Math.PI) da -= 2 * Math.PI; if (da < -Math.PI) da += 2 * Math.PI; theta += da; pinchA = t.ang;
+        const m = pxToM(); pan(-(t.cx - px) * m, -(t.cy - py) * m); px = t.cx; py = t.cy;
+        updateCam();
+      }
+    }, { passive: false });
+    el.addEventListener("touchend", (e) => { if (e.touches.length === 0) up(lx, ly); else dragging = false; });
+    el.addEventListener("touchcancel", () => { dragging = false; });
+
     const keys = new Set<string>();
     const onKey = (e: KeyboardEvent, on: boolean) => {
       const k = e.key.toLowerCase();
-      if (["arrowup", "arrowdown", "arrowleft", "arrowright", "w", "a", "s", "d", "q", "e", "+", "-", "="].includes(k)) { e.preventDefault(); if (on) keys.add(k); else keys.delete(k); }
+      if (["arrowup", "arrowdown", "arrowleft", "arrowright", "q", "e", "+", "-", "="].includes(k)) { e.preventDefault(); if (on) keys.add(k); else keys.delete(k); }
     };
     const onKeyDown = (e: KeyboardEvent) => onKey(e, true);
     const onKeyUp = (e: KeyboardEvent) => onKey(e, false);
-    window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("keyup", onKeyUp);
+    el.addEventListener("keydown", onKeyDown);
+    el.addEventListener("keyup", onKeyUp);
     const stepKeys = () => {
       if (!keys.size) return;
       const st = 0.012 * radius;
-      if (keys.has("arrowup") || keys.has("w")) pan(0, -st);
-      if (keys.has("arrowdown") || keys.has("s")) pan(0, st);
-      if (keys.has("arrowleft") || keys.has("a")) pan(-st, 0);
-      if (keys.has("arrowright") || keys.has("d")) pan(st, 0);
-      if (keys.has("q")) { theta += 0.02; updateCam(); }
-      if (keys.has("e")) { theta -= 0.02; updateCam(); }
-      if (keys.has("+") || keys.has("=")) { radius = Math.max(3, radius * 0.97); updateCam(); }
-      if (keys.has("-")) { radius = Math.min(55, radius * 1.03); updateCam(); }
+      if (keys.has("arrowup")) pan(0, -st);
+      if (keys.has("arrowdown")) pan(0, st);
+      if (keys.has("arrowleft")) pan(-st, 0);
+      if (keys.has("arrowright")) pan(st, 0);
+      if (keys.has("q")) turn(0.02);
+      if (keys.has("e")) turn(-0.02);
+      if (keys.has("+") || keys.has("=")) zoomBy(0.97);
+      if (keys.has("-")) zoomBy(1.03);
     };
-    el.addEventListener("touchstart", (e) => { if (e.touches.length === 1) down(e.touches[0].clientX, e.touches[0].clientY, false); else if (e.touches.length === 2) { pinch = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); lx = (e.touches[0].clientX + e.touches[1].clientX) / 2; ly = (e.touches[0].clientY + e.touches[1].clientY) / 2; } }, { passive: true });
-    el.addEventListener("touchmove", (e) => {
-      if (e.touches.length === 1) move(e.touches[0].clientX, e.touches[0].clientY);
-      else if (e.touches.length === 2) {
-        const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-        const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2, cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-        radius = Math.min(55, Math.max(3, radius * (pinch / d))); pinch = d;
-        pan(-(cx - lx) * radius * 0.0015, -(cy - ly) * radius * 0.0015); lx = cx; ly = cy; updateCam();
-      }
-    }, { passive: true });
-    el.addEventListener("touchend", () => (dragging = false));
 
     // ---------- picking ----------
     const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
@@ -424,38 +462,62 @@ export default function Hall3D({ cells, statusOf, onToggle, onHover, names, read
       const hit = ray.intersectObjects(pickables, false)[0];
       return hit ? (hit.object.userData.num as number) : null;
     };
+    let selected: number | null = null;
     const paint = (num: number) => {
       const g = chairs.get(num); if (!g) return;
       const st = state.status(num);
       g.userData.ring.material = st === "mine" ? mineMat : st === "selected" ? selMat : st === "reserved" ? reservedMat : st === "taken" ? takenMat : freeMat;
       g.userData.ring.visible = st !== "free";
-      g.userData.hring.visible = false;
+      g.userData.hring.visible = num === selected;
     };
     const repaintAll = () => chairs.forEach((_, n) => paint(n));
-    const toggle = (num: number) => { state.onToggle(num); };
-    if (!readOnly) el.addEventListener("click", (e) => { if (moved < 6) { const n = pick(e.clientX, e.clientY); if (n) toggle(n); } });
-    let lastHover: number | null = null;
-    el.addEventListener("mousemove", (e) => {
-      const n = pick(e.clientX, e.clientY);
-      if (n !== lastHover) { if (lastHover) paint(lastHover); const hg = n ? chairs.get(n) : undefined; if (hg) hg.userData.hring.visible = true; lastHover = n; state.onHover(n); el.style.cursor = n ? "pointer" : "grab"; }
-    });
+    const setSelected = (n: number | null) => { const prev = selected; selected = n; if (prev) paint(prev); if (n) paint(n); };
+    el.addEventListener("mousemove", (e) => { if (!dragging) el.style.cursor = pick(e.clientX, e.clientY) ? "pointer" : "grab"; });
 
     repaintRef.current = repaintAll; repaintAll();
-    const onResize = () => { const w = mount.clientWidth, h = mount.clientHeight; camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h); };
-    window.addEventListener("resize", onResize);
+    selectRef.current = setSelected;
+    viewRef.current = goView; zoomRef.current = zoomBy; turnRef.current = turn;
+
+    const onResize = () => {
+      const w = mount.clientWidth, h = mount.clientHeight; if (!w || !h) return;
+      camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h);
+      // The dynamic import can mount before layout gives the box a size, so
+      // the first real measurement is when the whole-hall fit is computed.
+      if (!fitted) { fitted = true; goView("all"); } else updateCam();
+    };
+    const ro = new ResizeObserver(onResize); ro.observe(mount);
     let raf = 0; const loop = () => { stepKeys(); renderer.render(scene, camera); raf = requestAnimationFrame(loop); }; loop();
     return () => {
       cancelAnimationFrame(raf);
-      window.removeEventListener("resize", onResize);
+      ro.disconnect();
       window.removeEventListener("mousemove", onWinMove);
       window.removeEventListener("mouseup", onWinUp);
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("keyup", onKeyUp);
       renderer.dispose();
       mount.removeChild(el);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cells]);
 
-  return <div ref={mountRef} className={className ?? "w-full h-[70vh] rounded-xl overflow-hidden"} style={{ cursor: "grab" }} dir="ltr" />;
+  const btn = "flex h-11 min-w-11 items-center justify-center rounded-full bg-white/90 px-3 text-sm font-bold text-brand-maroon shadow active:bg-white";
+  return (
+    <div className={className ?? "relative h-[70vh] w-full overflow-hidden rounded-xl"}>
+      <div ref={mountRef} className="absolute inset-0" style={{ cursor: "grab" }} dir="ltr" />
+      {/* Thumb-reachable controls: views on the right, zoom/turn on the left. */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]" dir="rtl">
+        <div className="pointer-events-auto flex flex-wrap gap-1.5">
+          <button className={btn} onClick={() => viewRef.current("all")}>כל האולם</button>
+          <button className={btn} onClick={() => viewRef.current("ark")}>ארון</button>
+          <button className={btn} onClick={() => viewRef.current("bimah")}>בימה</button>
+          <button className={btn} onClick={() => viewRef.current("women")}>עזרת נשים</button>
+        </div>
+        <div className="pointer-events-auto flex flex-col gap-1.5">
+          <button className={btn} aria-label="הגדל" onClick={() => zoomRef.current(0.75)}>+</button>
+          <button className={btn} aria-label="הקטן" onClick={() => zoomRef.current(1.33)}>−</button>
+          <div className="flex gap-1.5">
+            <button className={btn} aria-label="סובב שמאלה" onClick={() => turnRef.current(Math.PI / 8)}>⟲</button>
+            <button className={btn} aria-label="סובב ימינה" onClick={() => turnRef.current(-Math.PI / 8)}>⟳</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
