@@ -54,6 +54,25 @@ export default function AdminPage() {
   const [pendingConfirm, setPendingConfirm] = useState<{ label: string; run: () => void } | null>(null);
   const [assignName, setAssignName] = useState("");
   const [assignPhone, setAssignPhone] = useState("");
+  const [search, setSearch] = useState("");
+  const [focus, setFocus] = useState<number | undefined>(undefined);
+
+  // Holder name -> their seats, from the public map (names only, no phones).
+  // Placeholder holders (a pending claim, a nameless hold) are not people.
+  const matches = useMemo(() => {
+    const q = search.trim().replace(/[׳״'"]/g, "").toLowerCase();
+    if (q.length < 2 || !map) return [];
+    const byName = new Map<string, number[]>();
+    for (const [seat, name] of Object.entries(map.holders)) {
+      if (!name || name === "משוריין" || name === "שמור") continue;
+      if (!name.replace(/[׳״'"]/g, "").toLowerCase().includes(q)) continue;
+      byName.set(name, [...(byName.get(name) ?? []), Number(seat)]);
+    }
+    return [...byName.entries()]
+      .map(([name, seats]) => ({ name, seats: seats.sort((a, b) => a - b) }))
+      .sort((a, b) => a.name.localeCompare(b.name, "he"))
+      .slice(0, 12);
+  }, [search, map]);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const say = (kind: "ok" | "err", text: string) => {
@@ -255,11 +274,44 @@ export default function AdminPage() {
             <b className="tnum"> נבחרו: {[...selected].sort((a, b) => a - b).join(", ")}</b>
           )}
         </p>
+        {/* Find a holder by name: selects all their seats and scrolls the map to them. */}
+        <div className="relative mb-2">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="🔍 חיפוש לפי שם — בחירת כל המקומות של אותו אדם"
+            aria-label="חיפוש לפי שם"
+            className="field"
+          />
+          {search.trim().length >= 2 && (
+            <div className="absolute inset-x-0 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-xl border border-black/10 bg-white shadow-lg">
+              {matches.length === 0 ? (
+                <p className="px-3 py-2 text-sm opacity-50">לא נמצא</p>
+              ) : (
+                matches.map((m) => (
+                  <button
+                    key={m.name}
+                    onClick={() => {
+                      setSelected(m.seats);
+                      setFocus(m.seats[0]);
+                      setSearch("");
+                    }}
+                    className="flex w-full items-center justify-between gap-3 px-3 py-2 text-right text-sm hover:bg-[#f8f6f2]"
+                  >
+                    <span className="font-bold">{m.name}</span>
+                    <span className="tnum text-xs opacity-60">{m.seats.join(", ")}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+        </div>
         {layout ? (
           <SeatMap
             layout={layout}
             map={map}
             selected={selected}
+            focusSeat={focus}
             adminMode
             onToggleSeat={(sel) =>
               setSelected((cur) =>
