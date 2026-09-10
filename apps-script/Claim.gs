@@ -29,7 +29,7 @@ function claim(body) {
   var reqId = String(body.requestId || '').slice(0, 80);
   var ip = String(body.ip || '');
 
-  if (!seatNos.length || seatNos.length > 6) return { ok: false, code: 'BAD_SEAT' };
+  if (!seatNos.length || seatNos.length > 9) return { ok: false, code: 'BAD_SEAT' };
   if (!phone) return { ok: false, code: 'BAD_PHONE' };
   if (name.length < 2 || !reqId) return { ok: false, code: 'BAD_INPUT' };
 
@@ -112,40 +112,43 @@ function claim(body) {
       }
     }
 
-    // Section first: one claim stays inside one section, and both the cap
-    // and the price ladder are PER SECTION — a family buying in the women's
-    // section must not exhaust the father's men's-section allowance.
-    var section = String(bySeat[seatNos[0]].row[COLS.ZONE - 1]);
-    for (var sIdx = 1; sIdx < seatNos.length; sIdx++) {
-      if (String(bySeat[seatNos[sIdx]].row[COLS.ZONE - 1]) !== section) {
-        return rej('MIXED_SECTION');
-      }
-    }
-    // Durable cap, recounted from the sheet inside the lock.
-    var held = rows.filter(function (r) {
-      return normPhone_(r[COLS.PHONE - 1]) === phone &&
-        r[COLS.STATUS - 1] !== STATUS.FREE &&
-        String(r[COLS.ZONE - 1]) === section;
-    }).length;
-    var cap = capFor_(cfg, section);
-    if (held + seatNos.length > cap) {
-      return rej('CAP_REACHED', { cap: cap, held: held });
-    }
-
-    // Purchase shape. The rule, as the gabbai stated it: the second seat MUST
-    // be the one across the table from the first; a third must sit adjacent
-    // to that pair. This is what prevents a family buying a whole row of
-    // ark-facing seats with nobody opposite.
-    //
-    // Exemption: a selection consisting entirely of this caller's own holds
-    // is a historic position being confirmed — last year's arrangement
-    // predates the rule and is honored as-is.
+    // One purchase may cover both sections — the father buys his own chair
+    // and the family's women's-section row in one go. The cap, the price
+    // ladder and the shape rule are all PER SECTION, so the seats are
+    // grouped by section and each group is judged on its own.
+    var groups = {};
+    seatNos.forEach(function (n) {
+      var z = String(bySeat[n].row[COLS.ZONE - 1]);
+      (groups[z] = groups[z] || []).push(n);
+    });
+    var sections = Object.keys(groups);
     var reservedForMe = holdIsMine;
-    var allMine = seatNos.every(function (n) { return reservedForMe(bySeat[n].row); });
-
-    if (!allMine && shapeApplies_(section)) {
-      var shapeErr = shapeError_(seatNos, bySeat, reservedForMe);
-      if (shapeErr) return rej(shapeErr.code, shapeErr.extra);
+    // Pre-claim count per section, recounted from the sheet inside the lock
+    // — never from the cache. Feeds both the cap and the price ladder.
+    var heldBefore = {};
+    var total = 0;
+    for (var gi = 0; gi < sections.length; gi++) {
+      var section = sections[gi];
+      var group = groups[section];
+      var held = rows.filter(function (r) {
+        return normPhone_(r[COLS.PHONE - 1]) === phone &&
+          r[COLS.STATUS - 1] !== STATUS.FREE &&
+          String(r[COLS.ZONE - 1]) === section;
+      }).length;
+      heldBefore[section] = held;
+      var cap = capFor_(cfg, section);
+      if (held + group.length > cap) {
+        return rej('CAP_REACHED', { cap: cap, held: held, section: section });
+      }
+      // Purchase shape, men's tables only. Exemption: a selection consisting
+      // entirely of this caller's own holds is a historic position being
+      // confirmed — last year's arrangement predates the rule.
+      var allMine = group.every(function (n) { return reservedForMe(bySeat[n].row); });
+      if (!allMine && shapeApplies_(section)) {
+        var shapeErr = shapeError_(group, bySeat, reservedForMe);
+        if (shapeErr) return rej(shapeErr.code, shapeErr.extra);
+      }
+      total += totalPriceFor_(held + group.length, cfg, section) - totalPriceFor_(held, cfg, section);
     }
 
     // Anyone may buy a FREE seat in any round — chazaka priority is enforced
@@ -170,8 +173,7 @@ function claim(body) {
     if (body.registration) {
       try {
         sheet_(TAB.REGISTRATIONS).appendRow([
-          now, name, phone, email, seatNos.join(','),
-          totalPriceFor_(held + seatNos.length, cfg) - totalPriceFor_(held, cfg),
+          now, name, phone, email, seatNos.join(','), total,
           String(body.registration.aliyah1 || '').slice(0, 100),
           String(body.registration.aliyah2 || '').slice(0, 100),
           body.registration.takanonApproved === true,
@@ -192,7 +194,7 @@ function claim(body) {
       if (seatNos.indexOf(Number(r[COLS.SEAT_NO - 1])) !== -1) return;
       // Consumption is PER SECTION: buying women's-section chairs must not
       // evaporate the men's-section hold that is still awaiting confirmation.
-      if (String(r[COLS.ZONE - 1]) !== section) return;
+      if (!groups[String(r[COLS.ZONE - 1])]) return;
       sh.getRange(i + 2, COLS.STATUS).setValue(STATUS.FREE);
       sh.getRange(i + 2, COLS.CHAZAKA_NAME, 1, 2).setValues([['', '']]);
       releasedHolds.push(Number(r[COLS.SEAT_NO - 1]));
@@ -202,11 +204,6 @@ function claim(body) {
         'ok', 'released after claiming ' + seatNos.join(','), ip);
     }
 
-    // `held` above is the pre-claim count in this section — exactly what
-    // the per-section price ladder needs.
-    var heldInSection = held;
-    var total = totalPriceFor_(heldInSection + seatNos.length, cfg, section) -
-      totalPriceFor_(heldInSection, cfg, section);
     logAction_('CLAIM', seatNos.join(','), name, phone, cfg.PHASE,
       newStatus === STATUS.PENDING ? 'pending' : 'ok',
       'ms=' + (Date.now() - t0), ip);

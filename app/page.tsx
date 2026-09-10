@@ -163,10 +163,13 @@ export default function WizardPage() {
     if (!pr) return [150, 50];
     return section === "נשים" ? [pr.womenFirst, pr.womenExtra] : [pr.menFirst, pr.menExtra];
   };
-  const priceFor = (seats: number[]): number => {
-    const [f, e] = ladder(sectionOf(seats[0]));
-    return totalPrice(seats.length, f, e);
-  };
+  // Each section has its own ladder; a mixed purchase is the sum of the two.
+  const priceFor = (seats: number[]): number =>
+    (["גברים", "נשים"] as const).reduce((sum, section) => {
+      const n = seats.filter((s) => sectionOf(s) === section).length;
+      const [f, e] = ladder(section);
+      return sum + totalPrice(n, f, e);
+    }, 0);
 
   const seatAvailable = (n: number | null): n is number => {
     if (!n) return false;
@@ -192,14 +195,15 @@ export default function WizardPage() {
         const dropPair = sectionOf(sel.seatNo) !== "נשים";
         return cur.filter((n) => n !== sel.seatNo && (!dropPair || n !== sel.pairSeatNo));
       }
-      if (cur.length > 0 && sectionOf(sel.seatNo) !== sectionOf(cur[0])) {
-        setNotice("רכישה אחת נשארת באזור אחד — גברים או עזרת נשים. אשר קודם את המקומות שבחרת; מיד אחרי האישור יופיע כפתור להוספת מקומות באזור השני.");
-        return cur;
-      }
+      // One purchase may span both sections — the father's chair and the
+      // family's women's-section row together. Every rule below is judged
+      // on the tapped seat's own section; the other section rides along.
       const women = sectionOf(sel.seatNo) === "נשים";
+      const other = cur.filter((n) => sectionOf(n) !== sectionOf(sel.seatNo));
+      const same = cur.filter((n) => sectionOf(n) === sectionOf(sel.seatNo));
       const cap = women ? (map?.caps?.women ?? 6) : (map?.caps?.men ?? 3);
-      if (cur.length >= cap) {
-        setNotice(`עד ${cap} מקומות לרכישה אחת${women ? " בעזרת הנשים" : ""}.`);
+      if (same.length >= cap) {
+        setNotice(`עד ${cap} מקומות לרכישה אחת ב${women ? "עזרת הנשים" : "עזרת הגברים"}.`);
         return cur;
       }
 
@@ -211,20 +215,20 @@ export default function WizardPage() {
 
       // First seat: exactly one. Adding more is the buyer's choice — the
       // pair is suggested, never imposed.
-      if (cur.length === 0) {
+      if (same.length === 0) {
         if (seatAvailable(sel.pairSeatNo) && !reservedSeats.includes(sel.seatNo)) {
           setNotice(`רוצה גם את המקום שמול? לחץ על מקום ${sel.pairSeatNo}.`);
         }
-        return [sel.seatNo];
+        return [...other, sel.seatNo];
       }
 
       // Additional seat: must keep the shape valid. Selections made entirely
       // of one's own reserved seats are accepted as-is.
-      const next = [...cur, sel.seatNo];
-      if (allMine(next)) return next;
+      const next = [...same, sel.seatNo];
+      if (allMine(next)) return [...other, ...next];
 
       const hasPair = next.some(
-        (n) => sel.pairSeatNo === n || cur.some((c) => {
+        (n) => sel.pairSeatNo === n || same.some((c) => {
           const cell = layout?.cells.find(
             (x) => x.kind === "seat" && x.seatNo === c,
           );
@@ -232,7 +236,7 @@ export default function WizardPage() {
         }),
       );
       if (!hasPair && next.length === 2) {
-        const first = cur[0];
+        const first = same[0];
         const firstCell = layout?.cells.find((x) => x.kind === "seat" && x.seatNo === first);
         const wantedPair = firstCell?.kind === "seat" ? firstCell.pairSeatNo : null;
         setNotice(
@@ -247,7 +251,7 @@ export default function WizardPage() {
       // sold without its opposite. Tapping the "wrong" chair redirects to the
       // right one with an explanation instead of a dead end.
       if (next.length === 3) {
-        const facingInCur = cur.find((c) => {
+        const facingInCur = same.find((c) => {
           const cell = layout?.cells.find((x) => x.kind === "seat" && x.seatNo === c);
           return cell?.kind === "seat" && cell.facing === "ark";
         });
@@ -270,7 +274,7 @@ export default function WizardPage() {
             setNotice(
               `בחרנו עבורך את מקום ${redirect} (מול ${sel.seatNo}) — הכיסא השלישי חייב להיות בצד הפונה לארון, כדי שלא יישאר כיסא גב בלי מקום מולו. את ${sel.seatNo} יוכל לקחת מי שישב מול.`,
             );
-            return [...cur, redirect];
+            return [...other, ...same, redirect];
           }
           setNotice(
             "הכיסא השלישי חייב להיות בצד הפונה לארון, צמוד לזוג שבחרת — כך לא נשאר כיסא גב בלי מקום מולו.",
@@ -278,7 +282,7 @@ export default function WizardPage() {
           return cur;
         }
       }
-      return next;
+      return [...other, ...next];
     });
     if (!requestIdRef.current) requestIdRef.current = `c-${crypto.randomUUID()}`;
   };
@@ -819,7 +823,7 @@ export default function WizardPage() {
               ) : selected.length === 0 ? (
                 /* Nothing picked yet: a hint line, not a dead button. */
                 <p className="pb-1 text-center text-sm opacity-60">
-                  לחץ על מקום פנוי במפה כדי לבחור
+                  לחץ על מקום פנוי במפה כדי לבחור. אפשר באותה רכישה גם מקומות בעזרת הנשים (בתחתית המפה).
                 </p>
               ) : (
                 <>
