@@ -29,7 +29,7 @@ function claim(body) {
   var reqId = String(body.requestId || '').slice(0, 80);
   var ip = String(body.ip || '');
 
-  if (!seatNos.length || seatNos.length > 3) return { ok: false, code: 'BAD_SEAT' };
+  if (!seatNos.length || seatNos.length > 6) return { ok: false, code: 'BAD_SEAT' };
   if (!phone) return { ok: false, code: 'BAD_PHONE' };
   if (name.length < 2 || !reqId) return { ok: false, code: 'BAD_INPUT' };
 
@@ -127,7 +127,7 @@ function claim(body) {
         r[COLS.STATUS - 1] !== STATUS.FREE &&
         String(r[COLS.ZONE - 1]) === section;
     }).length;
-    var cap = Number(cfg.MAX_SEATS_PER_PHONE || 3);
+    var cap = capFor_(cfg, section);
     if (held + seatNos.length > cap) {
       return rej('CAP_REACHED', { cap: cap, held: held });
     }
@@ -143,7 +143,7 @@ function claim(body) {
     var reservedForMe = holdIsMine;
     var allMine = seatNos.every(function (n) { return reservedForMe(bySeat[n].row); });
 
-    if (!allMine) {
+    if (!allMine && shapeApplies_(section)) {
       var shapeErr = shapeError_(seatNos, bySeat, reservedForMe);
       if (shapeErr) return rej(shapeErr.code, shapeErr.extra);
     }
@@ -232,6 +232,22 @@ function claim(body) {
   } finally {
     lock.releaseLock();
   }
+}
+
+/**
+ * The purchase-shape rule is about the men's tables: an ark-facing chair
+ * must not be sold without its opposite. The women's section is rows of
+ * chairs where a mother and daughters sit side by side — no rule there.
+ */
+function shapeApplies_(section) {
+  return section !== 'נשים';
+}
+
+/** Per-section cap: the men's ladder stops at 3; a family fills a women's row. */
+function capFor_(cfg, section) {
+  return section === 'נשים'
+    ? Number(cfg.MAX_WOMEN_SEATS_PER_PHONE || 6)
+    : Number(cfg.MAX_SEATS_PER_PHONE || 3);
 }
 
 /**
@@ -376,7 +392,7 @@ function move(body) {
     var never = function () { return false; };
     var wasLegal = shapeError_(others.concat([from]), bySeat, never) === null;
     var after = others.concat([to]);
-    if (wasLegal) {
+    if (wasLegal && shapeApplies_(section)) {
       var shapeErr = shapeError_(after, bySeat, never);
       if (shapeErr) return rej(shapeErr.code, shapeErr.extra);
     }

@@ -19,7 +19,7 @@ export async function POST(req: Request) {
     const reg = body.registration;
     const result = await gasPost("claim", {
       requestId: String(body.requestId ?? ""),
-      seatNos: Array.isArray(body.seatNos) ? body.seatNos.slice(0, 3) : [],
+      seatNos: Array.isArray(body.seatNos) ? body.seatNos.slice(0, 6) : [],
       name: String(body.name ?? ""),
       phone: String(body.phone ?? ""),
       email: String(body.email ?? ""),

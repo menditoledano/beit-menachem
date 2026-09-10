@@ -90,6 +90,8 @@ export interface SeatMapPayload {
   memberFormUrl: string;
   /** Price ladders per section; women's seats sell on their own ladder. */
   prices: { menFirst: number; menExtra: number; womenFirst: number; womenExtra: number };
+  /** Seats one phone may hold per section; the women's row is a family's. */
+  caps?: { men: number; women: number };
   serverTime: string;
 }
 

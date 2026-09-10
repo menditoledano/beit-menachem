@@ -60,6 +60,10 @@ function seatmap() {
       womenFirst: Number(cfg.PRICE_WOMEN_FIRST_SEAT) || 150,
       womenExtra: Number(cfg.PRICE_WOMEN_EXTRA_SEAT) || 50,
     },
+    caps: {
+      men: Number(cfg.MAX_SEATS_PER_PHONE) || 3,
+      women: Number(cfg.MAX_WOMEN_SEATS_PER_PHONE) || 6,
+    },
     serverTime: new Date().toISOString(),
   };
   cache.put('seatmap', JSON.stringify(payload), 4);

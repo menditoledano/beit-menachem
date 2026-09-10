@@ -188,18 +188,26 @@ export default function WizardPage() {
     }
     setSelected((cur) => {
       if (cur.includes(sel.seatNo)) {
-        return cur.filter((n) => n !== sel.seatNo && n !== sel.pairSeatNo);
-      }
-      if (cur.length >= 3) {
-        setNotice("עד 3 מקומות לרכישה אחת.");
-        return cur;
+        // Men's tables come as pairs, so the opposite chair leaves with it.
+        const dropPair = sectionOf(sel.seatNo) !== "נשים";
+        return cur.filter((n) => n !== sel.seatNo && (!dropPair || n !== sel.pairSeatNo));
       }
       if (cur.length > 0 && sectionOf(sel.seatNo) !== sectionOf(cur[0])) {
         setNotice("רכישה אחת נשארת באזור אחד — גברים או עזרת נשים. אשר קודם את המקומות שבחרת; מיד אחרי האישור יופיע כפתור להוספת מקומות באזור השני.");
         return cur;
       }
+      const women = sectionOf(sel.seatNo) === "נשים";
+      const cap = women ? (map?.caps?.women ?? 6) : (map?.caps?.men ?? 3);
+      if (cur.length >= cap) {
+        setNotice(`עד ${cap} מקומות לרכישה אחת${women ? " בעזרת הנשים" : ""}.`);
+        return cur;
+      }
 
       const allMine = (list: number[]) => list.every((n) => reservedSeats.includes(n));
+
+      // The women's section is rows of chairs, sat side by side — any
+      // combination goes. The table-shape rule below is for the men's hall.
+      if (women) return [...cur, sel.seatNo];
 
       // First seat: exactly one. Adding more is the buyer's choice — the
       // pair is suggested, never imposed.
