@@ -64,6 +64,8 @@ export default function WizardPage() {
   const [notice, setNotice] = useState("");
   const [claimBusy, setClaimBusy] = useState(false);
   const [claimedSeats, setClaimedSeats] = useState<number[]>([]);
+  /** What the server actually charged for the last purchase — the sheet's number, not an estimate. */
+  const [claimedPrice, setClaimedPrice] = useState(0);
   /**
    * Swap mode: a returning buyer trades one of their own seats (gold on the
    * map) for a free one in the same section. No registration step — they
@@ -163,12 +165,15 @@ export default function WizardPage() {
     if (!pr) return [150, 50];
     return section === "נשים" ? [pr.womenFirst, pr.womenExtra] : [pr.menFirst, pr.menExtra];
   };
-  // Each section has its own ladder; a mixed purchase is the sum of the two.
+  // Each section has its own ladder, climbed from the seats this phone
+  // already holds there — a returning buyer's next chair is an "extra", not
+  // a "first". A mixed purchase is the sum of the two sections.
   const priceFor = (seats: number[]): number =>
     (["גברים", "נשים"] as const).reduce((sum, section) => {
       const n = seats.filter((s) => sectionOf(s) === section).length;
+      const held = ownedSeats.filter((s) => sectionOf(s) === section && !seats.includes(s)).length;
       const [f, e] = ladder(section);
-      return sum + totalPrice(n, f, e);
+      return sum + totalPrice(held + n, f, e) - totalPrice(held, f, e);
     }, 0);
 
   const seatAvailable = (n: number | null): n is number => {
@@ -313,6 +318,7 @@ export default function WizardPage() {
       const data: ClaimResponse = await res.json();
       if (data.ok) {
         setClaimedSeats(data.seatNos);
+        setClaimedPrice(data.totalPrice);
         setMovedFrom(null);
         setStep(4);
         poll();
@@ -880,7 +886,7 @@ export default function WizardPage() {
               rel="noopener noreferrer"
               className="btn-primary max-w-xs no-underline"
             >
-              💳 לתשלום מאובטח{movedFrom === null ? ` — ${priceFor(claimedSeats)} ₪` : ""}
+              💳 לתשלום מאובטח{movedFrom === null ? ` — ${claimedPrice} ₪` : ""}
             </a>
           )}
           {/* The seat is provisional until proof of payment reaches the
@@ -895,7 +901,7 @@ export default function WizardPage() {
           {map?.gabbaiPhone && !(movedFrom !== null && movePaid) && (
             <a
               href={`https://wa.me/${map.gabbaiPhone}?text=${encodeURIComponent(
-                `שלום, כאן ${name}. שילמתי על מקום/ות ${[...claimedSeats].sort((a, b) => a - b).join(", ")} בסך ${priceFor(claimedSeats)} ₪ — מצרף אסמכתא / הוראת קבע.`,
+                `שלום, כאן ${name}. שילמתי על מקום/ות ${[...claimedSeats].sort((a, b) => a - b).join(", ")} בסך ${claimedPrice} ₪ — מצרף אסמכתא / הוראת קבע.`,
               )}`}
               target="_blank"
               rel="noopener noreferrer"
