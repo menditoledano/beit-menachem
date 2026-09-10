@@ -892,6 +892,17 @@ export default function WizardPage() {
           {/* The seat is provisional until proof of payment reaches the
               gabbai — the deep link opens WhatsApp with the message ready,
               so all the buyer adds is the receipt itself. */}
+          {/* Women's-section chairs come in two plans; the map price is
+              the monthly one, so the choice is spelled out here. */}
+          {movedFrom === null && claimedSeats.some((n) => sectionOf(n) === "נשים") && (
+            <div className="pill pill-info text-right" aria-live="polite">
+              <b>עזרת נשים — שתי אפשרויות תשלום:</b>
+              <ul className="mt-1 list-disc pr-5">
+                <li>שמירת הכיסא לכל השנה: <b>{ladder("נשים")[1]} ₪ לחודש</b> לכיסא, בהוראת קבע.</li>
+                <li>לחודש תשרי בלבד: <b>תשלום חד־פעמי של {ladder("נשים")[1]} ₪</b> לכיסא — לאחר החגים המקום מתפנה.</li>
+              </ul>
+            </div>
+          )}
           {!(movedFrom !== null && movePaid) && (
             <div className="pill pill-warn text-right" aria-live="polite">
               <b>חשוב:</b> לאחר התשלום יש לשלוח לגבאי בוואטסאפ אסמכתא על
