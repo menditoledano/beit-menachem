@@ -170,6 +170,22 @@ function extendLayout(payload) {
   var byNo = {};
   seats.forEach(function (s) { byNo[Number(s.seatNo)] = s; });
 
+  // payload.keep lets a previous extension be reshaped before anyone sat in
+  // it: seats 1..keep are proven identical below, and every seat past keep is
+  // dropped — only if nobody holds it. A single holder anywhere in the tail
+  // refuses the whole call, so numbering never shifts under a claim.
+  var keep = payload.keep === undefined ? existing.length : Number(payload.keep);
+  if (keep < existing.length) {
+    var tail = seatSh.getRange(keep + 2, 1, existing.length - keep, SEAT_HEADERS.length).getValues();
+    tail.forEach(function (r) {
+      var held = r[COLS.STATUS - 1] !== STATUS.FREE || String(r[COLS.NAME - 1] || '') ||
+        String(r[COLS.PHONE - 1] || '') || String(r[COLS.CHAZAKA_NAME - 1] || '');
+      if (held) throw new Error('מקום ' + r[0] + ' לא פנוי — אי אפשר לעצב מחדש את ההרחבה');
+    });
+    seatSh.deleteRows(keep + 2, existing.length - keep);
+    existing = existing.slice(0, keep);
+  }
+
   existing.forEach(function (r) {
     var n = Number(r[0]);
     var s = byNo[n];
@@ -219,7 +235,7 @@ function extendLayout(payload) {
   SpreadsheetApp.flush();
 
   logAction_('EXTEND_LAYOUT', (N + 1) + '-' + (N + added.length), '', '', '', 'ok',
-    'version=' + version, '');
+    'version=' + version + (payload.keep !== undefined ? ' keep=' + keep : ''), '');
   return { added: added.length, from: N + 1, to: N + added.length, version: version };
 }
 
