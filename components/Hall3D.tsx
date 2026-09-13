@@ -10,7 +10,7 @@ import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { ApiSeat, Seat, buildSeats, buildTables, ELEMENTS, tableZ, R_CX, C_CX, L_CX, Z0 } from "./hall3d-geometry";
 
-export type SeatStatus = "free" | "taken" | "reserved" | "mine" | "selected";
+export type SeatStatus = "free" | "taken" | "reserved" | "mine" | "selected" | "removed";  // removed: blocked in the sheet — not a chair in the hall
 export type HallView = "all" | "ark" | "bimah" | "women";
 export type Hall3DProps = {
   cells: ApiSeat[];                              // layout.cells from /api/layout
@@ -460,13 +460,15 @@ export default function Hall3D({ cells, statusOf, onSelect, selectedSeat, classN
       const r = el.getBoundingClientRect();
       ndc.set(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
       ray.setFromCamera(ndc, camera);
-      const hit = ray.intersectObjects(pickables, false)[0];
+      // A hidden chair (removed from the hall) must not swallow the tap.
+      const hit = ray.intersectObjects(pickables, false).find((h) => h.object.parent?.visible);
       return hit ? (hit.object.userData.num as number) : null;
     };
     let selected: number | null = null;
     const paint = (num: number) => {
       const g = chairs.get(num); if (!g) return;
       const st = state.status(num);
+      g.visible = st !== "removed";
       g.userData.ring.material = st === "mine" ? mineMat : st === "selected" ? selMat : st === "reserved" ? reservedMat : st === "taken" ? takenMat : freeMat;
       g.userData.ring.visible = st !== "free";
       g.userData.hring.visible = num === selected;

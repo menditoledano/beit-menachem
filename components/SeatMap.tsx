@@ -251,6 +251,10 @@ export function SeatMap({
           }
 
           const code = map?.status[String(cell.seatNo)] ?? "0";
+          // A blocked chair has been taken out of the hall (a pillar, a
+          // passage): the public map shows floor there. The gabbai keeps a
+          // ghost cell so the chair can be put back.
+          if (code === "3" && !adminMode) return null;
           const holder = map?.holders[String(cell.seatNo)];
           const isSelected = selected.includes(cell.seatNo);
           const isMyHold = mine.has(cell.seatNo);
@@ -277,7 +281,7 @@ export function SeatMap({
                   : code === "2"
                     ? "bg-seat-pending text-white"
                     : code === "3"
-                      ? "bg-seat-blocked text-white"
+                      ? "border-2 border-dashed border-black/30 bg-transparent text-black/40"
                       : "bg-seat-taken text-white";
 
           const label =
@@ -287,7 +291,9 @@ export function SeatMap({
                 ? `מקום ${cell.seatNo} — שמור לך`
                 : code === "4"
                   ? `מקום ${cell.seatNo} — שמור ל${holder ?? ""}`
-                  : `מקום ${cell.seatNo} — ${holder ?? "תפוס"}`;
+                  : code === "3"
+                    ? `מקום ${cell.seatNo} — הוסר מהאולם`
+                    : `מקום ${cell.seatNo} — ${holder ?? "תפוס"}`;
 
           return (
             <button

@@ -60,15 +60,17 @@ export default function HallPage() {
   const statusOf = useCallback(
     (n: number): SeatStatus => {
       const code = map?.status[String(n)] ?? "0";
-      return code === "0" ? "free" : code === "4" ? "reserved" : "taken";
+      return code === "0" ? "free" : code === "4" ? "reserved" : code === "3" ? "removed" : "taken";
     },
     [map],
   );
   // Tapping the outlined chair again clears the card.
   const onSelect = useCallback((n: number) => setPicked((cur) => (cur === n ? null : n)), []);
 
-  const taken = map ? Object.values(map.status).filter((v) => v !== "0").length : 0;
-  const total = layout?.cells.filter((c) => c.kind === "seat").length ?? 0;
+  // Blocked chairs are out of the hall: not taken, not counted.
+  const taken = map ? Object.values(map.status).filter((v) => v !== "0" && v !== "3").length : 0;
+  const removed = map ? Object.values(map.status).filter((v) => v === "3").length : 0;
+  const total = (layout?.cells.filter((c) => c.kind === "seat").length ?? 0) - removed;
   const pickedCode = picked !== null ? map?.status[String(picked)] ?? "0" : "0";
   const pickedName = picked !== null ? map?.holders[String(picked)] : undefined;
   const pickedCell = picked !== null ? layout?.cells.find((c) => c.kind === "seat" && c.seatNo === picked) : undefined;

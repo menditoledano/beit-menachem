@@ -227,7 +227,7 @@ export default function AdminPage() {
             <span className="rounded-full bg-seat-pending/20 px-2.5 py-1">משוריין {counts.pending}</span>
           )}
           {counts.blocked > 0 && (
-            <span className="rounded-full bg-black/20 px-2.5 py-1">חסום {counts.blocked}</span>
+            <span className="rounded-full bg-black/20 px-2.5 py-1">הוסרו מהאולם {counts.blocked}</span>
           )}
         </div>
       </header>
@@ -364,11 +364,11 @@ export default function AdminPage() {
               </button>
               <button disabled={!!busy} className={opBtn}
                 onClick={() => run("חסימה", { action: "gabbai", op: "block", seatNos: selected })}>
-                🚫 חסום
+                🚫 הסר מהאולם
               </button>
               <button disabled={!!busy} className={opBtn}
                 onClick={() => run("ביטול חסימה", { action: "gabbai", op: "unblock", seatNos: selected })}>
-                ↩️ בטל חסימה
+                ↩️ החזר לאולם
               </button>
               <button disabled={!!busy} className={opBtn} onClick={() => setSelected([])}>
                 נקה בחירה
