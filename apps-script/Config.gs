@@ -105,9 +105,18 @@ function priceForNthSeat_(n, cfg) {
     : Number(cfg.PRICE_EXTRA_SEAT);
 }
 
+/**
+ * Every women's-section zone starts with "נשים" — the year-round rows and
+ * the temporary Yom Kippur rows ("נשים — יום כיפור") share the ladder, the
+ * cap and the no-shape rule; only the sale text differs.
+ */
+function isWomen_(section) {
+  return String(section || '').indexOf('נשים') === 0;
+}
+
 function totalPriceFor_(count, cfg, section) {
   if (count <= 0) return 0;
-  var women = section === 'נשים';
+  var women = isWomen_(section);
   var first = Number(women ? cfg.PRICE_WOMEN_FIRST_SEAT : cfg.PRICE_FIRST_SEAT) || 150;
   var extra = Number(women ? cfg.PRICE_WOMEN_EXTRA_SEAT : cfg.PRICE_EXTRA_SEAT) || 50;
   return first + (count - 1) * extra;

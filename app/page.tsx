@@ -21,7 +21,7 @@ import type {
   RegistrationData,
   SeatMapPayload,
 } from "@/lib/domain";
-import { normalizePhone, totalPrice } from "@/lib/domain";
+import { isKippurZone, isWomenZone, normalizePhone, totalPrice } from "@/lib/domain";
 import { SeatMap, type SeatSelection } from "@/components/SeatMap";
 import { Logo } from "@/components/Logo";
 
@@ -156,10 +156,14 @@ export default function WizardPage() {
    * third must be adjacent to that pair. Confirming one's own reserved seats
    * is exempt — last year's arrangement predates the rule.
    */
-  const sectionOf = (n: number | undefined): "גברים" | "נשים" => {
+  const zoneOf = (n: number | undefined): string => {
     const cell = layout?.cells.find((x) => x.kind === "seat" && x.seatNo === n);
-    return cell?.kind === "seat" && cell.zone === "נשים" ? "נשים" : "גברים";
+    return cell?.kind === "seat" ? cell.zone : "";
   };
+  const sectionOf = (n: number | undefined): "גברים" | "נשים" =>
+    isWomenZone(zoneOf(n)) ? "נשים" : "גברים";
+  /** The temporary rows behind the women's section: sold for Yom Kippur only. */
+  const isKippurSeat = (n: number): boolean => isKippurZone(zoneOf(n));
   const ladder = (section: "גברים" | "נשים"): [number, number] => {
     const pr = map?.prices;
     if (!pr) return [150, 50];
@@ -839,6 +843,13 @@ export default function WizardPage() {
                     </span>
                     <b className="tnum text-lg">{price} ₪</b>
                   </div>
+                  {selected.some(isKippurSeat) && (
+                    <p className="text-xs text-amber-800">
+                      {selected.filter(isKippurSeat).length === 1 ? "מקום" : "מקומות"}{" "}
+                      <span className="tnum">{selected.filter(isKippurSeat).sort((a, b) => a - b).join(", ")}</span>
+                      {" "}— שורה זמנית, שמירת מקום ליום כיפור בלבד (תשלום חד־פעמי).
+                    </p>
+                  )}
                   <button onClick={() => submitClaim()} disabled={claimBusy} className="btn-primary">
                     {claimBusy ? "רושם…" : `אישור סופי — ${price} ₪`}
                   </button>
@@ -894,7 +905,16 @@ export default function WizardPage() {
               so all the buyer adds is the receipt itself. */}
           {/* Women's-section chairs come in two plans; the map price is
               the monthly one, so the choice is spelled out here. */}
-          {movedFrom === null && claimedSeats.some((n) => sectionOf(n) === "נשים") && (
+          {movedFrom === null && claimedSeats.some(isKippurSeat) && (
+            <div className="pill pill-warn text-right" aria-live="polite">
+              <b>שורות זמניות — יום כיפור בלבד:</b> {claimedSeats.filter(isKippurSeat).length === 1
+                ? `מקום ${claimedSeats.find(isKippurSeat)}`
+                : `מקומות ${claimedSeats.filter(isKippurSeat).sort((a, b) => a - b).join(", ")}`}
+              {" "}— תשלום חד־פעמי של <b>{ladder("נשים")[1]} ₪</b> לכיסא. השורות האלה מוצבות ליום כיפור
+              בלבד ואינן נשמרות לשאר השנה.
+            </div>
+          )}
+          {movedFrom === null && claimedSeats.some((n) => sectionOf(n) === "נשים" && !isKippurSeat(n)) && (
             <div className="pill pill-info text-right" aria-live="polite">
               <b>עזרת נשים — שתי אפשרויות תשלום:</b>
               <ul className="mt-1 list-disc pr-5">

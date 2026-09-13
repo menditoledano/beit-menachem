@@ -237,12 +237,12 @@ function claim(body) {
  * chairs where a mother and daughters sit side by side — no rule there.
  */
 function shapeApplies_(section) {
-  return section !== 'נשים';
+  return !isWomen_(section);
 }
 
 /** Per-section cap: the men's ladder stops at 3; a family fills a women's row. */
 function capFor_(cfg, section) {
-  return section === 'נשים'
+  return isWomen_(section)
     ? Number(cfg.MAX_WOMEN_SEATS_PER_PHONE || 6)
     : Number(cfg.MAX_SEATS_PER_PHONE || 3);
 }

@@ -15,6 +15,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CompiledLayout, SeatMapPayload } from "@/lib/domain";
+import { isKippurZone } from "@/lib/domain";
 
 export interface SeatSelection {
   seatNo: number;
@@ -307,11 +308,14 @@ export function SeatMap({
               aria-label={label}
             >
               <span className="text-[15px] font-bold leading-none">{cell.seatNo}</span>
-              {(holder || isMyHold) && (
+              {(holder || isMyHold) ? (
                 <span className="max-w-[54px] truncate px-0.5 text-[11px] leading-tight">
                   {isMyHold ? "שלך ✓" : holder}
                 </span>
-              )}
+              ) : isKippurZone(cell.zone) ? (
+                /* Temporary rows: sold for the holiday only, said on the chair itself. */
+                <span className="px-0.5 text-[10px] leading-tight opacity-90">כיפור</span>
+              ) : null}
             </button>
           );
         })}

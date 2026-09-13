@@ -50,6 +50,8 @@ function doPost(e) {
         return json_({ ok: true, result: saveLayout(body) });
       case 'loadLayout':
         return json_({ ok: true, layout: loadLayout() });
+      case 'extendLayout':
+        return json_({ ok: true, result: extendLayout(body) });
       case 'publishLayout':
         return json_({ ok: true, result: publishLayout(body) });
       case 'getLayout':

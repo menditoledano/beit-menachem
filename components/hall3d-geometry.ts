@@ -29,10 +29,12 @@ const seatX = (s: { col: number }, r0: number) => {
 
 
 export function buildSeats(cells: ApiSeat[]): Seat[] {
-  return cells.filter((c) => c.kind === "seat").map((c) => {
+  // The temporary Yom Kippur rows sit past the plan's last row start, behind
+  // the back wall as drawn; the 3D view shows the permanent hall only.
+  return cells.filter((c) => c.kind === "seat" && ROW_START[c.facing === "ark" ? c.row : c.row - 1] !== undefined).map((c) => {
     const facing: "a" | "b" = c.facing === "ark" ? "a" : "b";
     const r0 = facing === "a" ? c.row : c.row - 1;
-    const seat: Seat = { num: c.seatNo, row: c.row, col: c.col, zone: c.zone === "נשים" ? "w" : "m", facing, r0, block: blockOf(c.col), x: 0, z: 0 };
+    const seat: Seat = { num: c.seatNo, row: c.row, col: c.col, zone: c.zone.startsWith("נשים") ? "w" : "m", facing, r0, block: blockOf(c.col), x: 0, z: 0 };
     seat.x = seatX(seat, r0);
     // Same order as the 2D map: the ark-facing row (layout row r0) is the one
     // nearer the ark, its opposite sits on the far side of the table.

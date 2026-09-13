@@ -30,6 +30,16 @@ export const STATUS_CODE: Record<SeatStatus, string> = {
   שמור: "4",
 };
 
+/**
+ * Zones. Every women's-section zone starts with "נשים": the two year-round
+ * rows are plain "נשים"; the temporary rows added for Yom Kippur carry the
+ * holiday in their name, so the map, the sale text and the 3D view can tell
+ * them apart while pricing and caps treat them as one section.
+ */
+export const KIPPUR_ZONE = "נשים — יום כיפור";
+export const isWomenZone = (zone: string | undefined): boolean => (zone ?? "").startsWith("נשים");
+export const isKippurZone = (zone: string | undefined): boolean => zone === KIPPUR_ZONE;
+
 export type Phase = "A" | "B";
 export type SaleMode = "OPEN" | "READONLY" | "CLOSED";
 

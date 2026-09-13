@@ -148,6 +148,81 @@ function publishLayout(payload) {
 }
 
 /** Rendering JSON for the public map, cached because it never changes mid-sale. */
+/**
+ * Adds tables to a live layout without touching a single existing seat.
+ *
+ * publishLayout renumbers everything and therefore refuses while anyone holds
+ * a chair. Mid-sale growth — the temporary Yom Kippur rows — needs the
+ * opposite guarantee: seats 1..N stay byte-for-byte what they were, and only
+ * N+1..M are appended. The caller numbers with the same lib/layout.ts code
+ * the editor uses; this function proves the prefix is unchanged before it
+ * writes anything.
+ */
+function extendLayout(payload) {
+  var layout = payload.layout;
+  var seats = payload.seats;
+  var compiled = payload.compiled;
+  if (!layout || !seats || !seats.length || !compiled) throw new Error('חסר מידע להרחבה');
+
+  var seatSh = sheet_(TAB.SEATS);
+  var lastRow = seatSh.getLastRow();
+  var existing = lastRow > 1 ? seatSh.getRange(2, 1, lastRow - 1, 6).getValues() : [];
+  var byNo = {};
+  seats.forEach(function (s) { byNo[Number(s.seatNo)] = s; });
+
+  existing.forEach(function (r) {
+    var n = Number(r[0]);
+    var s = byNo[n];
+    if (!s) throw new Error('מקום ' + n + ' נעלם מהפריסה החדשה');
+    var same = String(s.tableId) === String(r[1]) && String(s.side) === String(r[2]) &&
+      Boolean(s.facingArk) === (r[3] === true || r[3] === 'TRUE') &&
+      Number(s.pairSeatNo) === Number(r[4]) && String(s.zone) === String(r[5]);
+    if (!same) throw new Error('מקום ' + n + ' השתנה — הרחבה חייבת להשאיר את הקיים כמות שהוא');
+  });
+  var N = existing.length;
+  var added = seats.filter(function (s) { return Number(s.seatNo) > N; })
+    .sort(function (a, b) { return a.seatNo - b.seatNo; });
+  if (!added.length) throw new Error('אין מקומות חדשים להוסיף');
+  added.forEach(function (s, i) {
+    if (Number(s.seatNo) !== N + 1 + i) throw new Error('מספור לא רציף אחרי ' + N);
+  });
+  added.forEach(function (s) {
+    if (s.facingArk) {
+      var pair = byNo[Number(s.pairSeatNo)];
+      if (!pair || Number(pair.pairSeatNo) !== Number(s.seatNo)) {
+        throw new Error('מקום ' + s.seatNo + ' פונה לארון בלי בן זוג תקין');
+      }
+    }
+  });
+
+  saveLayout({ layout: layout });
+
+  var rows = added.map(function (s) {
+    return [
+      s.seatNo, s.tableId, s.side, s.facingArk, s.pairSeatNo, s.zone,
+      STATUS.FREE, '', '', '', '', false, '', '', '', '',
+    ];
+  });
+  seatSh.getRange(N + 2, 1, rows.length, SEAT_HEADERS.length).setValues(rows);
+  // Phones stay text in the appended rows too.
+  seatSh.getRange(N + 2, COLS.PHONE, rows.length, 1).setNumberFormat('@');
+  seatSh.getRange(N + 2, COLS.CHAZAKA_PHONE, rows.length, 1).setNumberFormat('@');
+
+  var version = Utilities.getUuid().slice(0, 8);
+  sheet_(TAB.LAYOUT_COMPILED).getRange(1, 1).setValue(JSON.stringify({
+    version: version,
+    rows: compiled.rows, cols: compiled.cols,
+    tracks: compiled.tracks, cells: compiled.cells,
+  }));
+  CacheService.getScriptCache().remove('layout');
+  CacheService.getScriptCache().remove('seatmap');
+  SpreadsheetApp.flush();
+
+  logAction_('EXTEND_LAYOUT', (N + 1) + '-' + (N + added.length), '', '', '', 'ok',
+    'version=' + version, '');
+  return { added: added.length, from: N + 1, to: N + added.length, version: version };
+}
+
 function getCompiledLayout() {
   var cache = CacheService.getScriptCache();
   var hit = cache.get('layout');
