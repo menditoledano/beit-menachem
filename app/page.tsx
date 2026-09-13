@@ -82,8 +82,12 @@ export default function WizardPage() {
   const layoutVersionRef = useRef("");
   const requestIdRef = useRef("");
 
-  const fetchLayout = useCallback(async () => {
-    const res = await fetch("/api/layout");
+  // The geometry is edge-cached for up to an hour (stale-while-revalidate),
+  // so a refetch on the bare URL would just get the old hall back. Keying
+  // the URL by the version the seatmap reports makes every new version a
+  // fresh cache entry.
+  const fetchLayout = useCallback(async (version?: string) => {
+    const res = await fetch(version ? `/api/layout?v=${encodeURIComponent(version)}` : "/api/layout");
     if (res.ok) {
       const l: CompiledLayout = await res.json();
       layoutVersionRef.current = l.version;
@@ -97,7 +101,7 @@ export default function WizardPage() {
       if (!res.ok) return;
       const m: SeatMapPayload = await res.json();
       setMap(m);
-      if (m.layoutVersion && m.layoutVersion !== layoutVersionRef.current) await fetchLayout();
+      if (m.layoutVersion && m.layoutVersion !== layoutVersionRef.current) await fetchLayout(m.layoutVersion);
     } catch { /* next tick retries */ }
   }, [fetchLayout]);
 

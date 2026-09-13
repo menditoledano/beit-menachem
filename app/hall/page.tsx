@@ -29,8 +29,9 @@ export default function HallPage() {
   const [picked, setPicked] = useState<number | null>(null);
   const [error, setError] = useState("");
 
-  const loadLayout = useCallback(async () => {
-    const r = await fetch("/api/layout", { cache: "no-store" });
+  // Keyed by the seatmap's version: the bare URL is edge-cached for up to an hour.
+  const loadLayout = useCallback(async (version?: string) => {
+    const r = await fetch(version ? `/api/layout?v=${encodeURIComponent(version)}` : "/api/layout", { cache: "no-store" });
     if (!r.ok) throw new Error("layout");
     setLayout(await r.json());
   }, []);
@@ -41,7 +42,7 @@ export default function HallPage() {
       const m: SeatMapPayload = await r.json();
       setMap(m);
       setError("");
-      if (layout && m.layoutVersion !== layout.version) await loadLayout();
+      if (layout && m.layoutVersion !== layout.version) await loadLayout(m.layoutVersion);
     } catch {
       setError("אין תקשורת עם המערכת, מציג נתונים אחרונים");
     }

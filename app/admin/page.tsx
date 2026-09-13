@@ -109,7 +109,8 @@ export default function AdminPage() {
     setLoginErr("");
     try {
       await refresh();
-      const lay = await fetch("/api/layout");
+      // The gabbai must see the hall as it is now, not the edge's hour-old copy.
+      const lay = await fetch(`/api/layout?v=${Date.now()}`);
       if (lay.ok) setLayout(await lay.json());
       setTokenOk(true);
       localStorage.setItem("adminToken", token);
