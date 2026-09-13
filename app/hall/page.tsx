@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import type { CompiledLayout, SeatMapPayload } from "@/lib/domain";
+import { isKippurZone, type CompiledLayout, type SeatMapPayload } from "@/lib/domain";
 import type { ApiSeat } from "@/components/hall3d-geometry";
 import type { SeatStatus } from "@/components/Hall3D";
 
@@ -67,10 +67,12 @@ export default function HallPage() {
   // Tapping the outlined chair again clears the card.
   const onSelect = useCallback((n: number) => setPicked((cur) => (cur === n ? null : n)), []);
 
-  // Blocked chairs are out of the hall: not taken, not counted.
-  const taken = map ? Object.values(map.status).filter((v) => v !== "0" && v !== "3").length : 0;
-  const removed = map ? Object.values(map.status).filter((v) => v === "3").length : 0;
-  const total = (layout?.cells.filter((c) => c.kind === "seat").length ?? 0) - removed;
+  // Count what the 3D hall draws: the temporary Yom Kippur rows are not
+  // built (see hall3d-geometry), and a blocked chair is out of the hall.
+  const drawn = (layout?.cells ?? []).filter((c) => c.kind === "seat" && !isKippurZone(c.zone)).map((c) => c.seatNo);
+  const code = (n: number) => map?.status[String(n)] ?? "0";
+  const total = drawn.filter((n) => code(n) !== "3").length;
+  const taken = map ? drawn.filter((n) => code(n) !== "0" && code(n) !== "3").length : 0;
   const pickedCode = picked !== null ? map?.status[String(picked)] ?? "0" : "0";
   const pickedName = picked !== null ? map?.holders[String(picked)] : undefined;
   const pickedCell = picked !== null ? layout?.cells.find((c) => c.kind === "seat" && c.seatNo === picked) : undefined;
