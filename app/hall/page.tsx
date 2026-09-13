@@ -69,7 +69,7 @@ export default function HallPage() {
 
   // Count what the 3D hall draws: the temporary Yom Kippur rows are not
   // built (see hall3d-geometry), and a blocked chair is out of the hall.
-  const drawn = (layout?.cells ?? []).filter((c) => c.kind === "seat" && !isKippurZone(c.zone)).map((c) => c.seatNo);
+  const drawn = (layout?.cells ?? []).flatMap((c) => (c.kind === "seat" && !isKippurZone(c.zone) ? [c.seatNo] : []));
   const code = (n: number) => map?.status[String(n)] ?? "0";
   const total = drawn.filter((n) => code(n) !== "3").length;
   const taken = map ? drawn.filter((n) => code(n) !== "0" && code(n) !== "3").length : 0;
