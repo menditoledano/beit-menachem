@@ -236,7 +236,7 @@ export function SeatMap({
       >
         <div
           className="grid w-max gap-[3px] p-1"
-          style={{ gridTemplateColumns: tracks, gridAutoRows: `${SEAT_PX}px`, zoom, paddingBottom: bottomInset }}
+          style={{ gridTemplateColumns: tracks, gridAutoRows: `${SEAT_PX}px`, zoom }}
         >
         {layout.cells.map((cell) => {
           if (cell.kind === "element") {
@@ -333,6 +333,9 @@ export function SeatMap({
           );
         })}
         </div>
+        {/* Outside the zoomed grid, so the inset is real pixels: lets the
+            last rows scroll out from under the page's bottom bar. */}
+        {bottomInset > 0 && <div aria-hidden style={{ height: bottomInset }} />}
       </div>
       </div>
       </div>

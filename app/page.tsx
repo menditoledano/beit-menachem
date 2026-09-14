@@ -31,22 +31,6 @@ const STEP_TITLES = ["זיהוי", "פרטים ועליות", "תקנון ותש
 
 export default function WizardPage() {
   const [step, setStep] = useState<Step>(0);
-  // The sticky bar under the map covers its last rows (and grows when a seat
-  // is picked). Its measured height becomes the map's bottom inset.
-  const barRef = useRef<HTMLDivElement | null>(null);
-  const [barHeight, setBarHeight] = useState(0);
-  useEffect(() => {
-    const el = barRef.current;
-    if (!el) return;
-    const measure = () => setBarHeight(el.getBoundingClientRect().height);
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    // ResizeObserver only reports on a rendered frame; a background tab
-    // (or a page opened hidden) would keep the inset at 0 until the first
-    // paint, so take one measurement off the render cycle as well.
-    const t = setTimeout(measure, 0);
-    return () => { ro.disconnect(); clearTimeout(t); };
-  }, [step]);
 
   // Identity
   const [phone, setPhone] = useState("");
@@ -91,6 +75,30 @@ export default function WizardPage() {
   const [moveMode, setMoveMode] = useState(false);
   const [moveFrom, setMoveFrom] = useState<number | null>(null);
   const [moveTo, setMoveTo] = useState<number | null>(null);
+  // The sticky bar under the map covers its last rows, and grows when a seat
+  // is picked. Its measured height becomes the map's bottom inset, and the
+  // page's scroll padding, so a chair brought into view lands above the bar.
+  const barRef = useRef<HTMLDivElement | null>(null);
+  const [barHeight, setBarHeight] = useState(0);
+  useEffect(() => {
+    const el = barRef.current;
+    if (!el) return;
+    const measure = () => {
+      const h = el.getBoundingClientRect().height;
+      setBarHeight(h);
+      document.documentElement.style.scrollPaddingBottom = `${h}px`;
+    };
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    // ResizeObserver only reports on a rendered frame; a background tab
+    // (or a page opened hidden) would keep the inset at 0 until the first
+    // paint, so measure off the render cycle as well, on every bar change.
+    const t = setTimeout(measure, 0);
+    return () => {
+      ro.disconnect(); clearTimeout(t);
+      document.documentElement.style.scrollPaddingBottom = "";
+    };
+  }, [step, selected.length, moveMode, moveFrom, moveTo, claimBusy]);
   const [moveBusy, setMoveBusy] = useState(false);
   /** Set on the done screen after a swap; null after a purchase. */
   const [movedFrom, setMovedFrom] = useState<number | null>(null);
