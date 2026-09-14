@@ -38,9 +38,14 @@ export default function WizardPage() {
   useEffect(() => {
     const el = barRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => setBarHeight(el.getBoundingClientRect().height));
-    ro.observe(el); // fires once on observe, so the first height arrives without a sync set
-    return () => ro.disconnect();
+    const measure = () => setBarHeight(el.getBoundingClientRect().height);
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    // ResizeObserver only reports on a rendered frame; a background tab
+    // (or a page opened hidden) would keep the inset at 0 until the first
+    // paint, so take one measurement off the render cycle as well.
+    const t = setTimeout(measure, 0);
+    return () => { ro.disconnect(); clearTimeout(t); };
   }, [step]);
 
   // Identity
