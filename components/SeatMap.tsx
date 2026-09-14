@@ -36,6 +36,7 @@ export function SeatMap({
   focusSeat,
   adminMode,
   fitOnMount,
+  bottomInset = 0,
   onToggleSeat,
 }: {
   layout: CompiledLayout;
@@ -50,6 +51,10 @@ export function SeatMap({
   adminMode?: boolean;
   /** Open showing the WHOLE hall (fit-to-width); zoom in from there. */
   fitOnMount?: boolean;
+  /** Height (px) of a bar the page pins over the map's bottom edge, so the
+   *  last rows can scroll out from under it and a tapped seat is never
+   *  covered by the bar that its own tap made taller. */
+  bottomInset?: number;
   onToggleSeat: (sel: SeatSelection) => void;
 }) {
   // Column widths are computed PER COLUMN from actual seat occupancy, not
@@ -227,11 +232,11 @@ export function SeatMap({
       <div
         ref={scrollRef}
         className="max-h-[74vh] overflow-auto rounded-xl"
-        style={{ overscrollBehavior: "contain" }}
+        style={{ overscrollBehavior: "contain", scrollPaddingBottom: bottomInset }}
       >
         <div
           className="grid w-max gap-[3px] p-1"
-          style={{ gridTemplateColumns: tracks, gridAutoRows: `${SEAT_PX}px`, zoom }}
+          style={{ gridTemplateColumns: tracks, gridAutoRows: `${SEAT_PX}px`, zoom, paddingBottom: bottomInset }}
         >
         {layout.cells.map((cell) => {
           if (cell.kind === "element") {
@@ -307,6 +312,8 @@ export function SeatMap({
                 })
               }
               data-seat={cell.seatNo}
+              /* Selecting grows the bottom bar; keep the tapped chair visible above it. */
+              onPointerUp={(e) => bottomInset > 0 && !adminMode && e.currentTarget.scrollIntoView({ block: "nearest", inline: "nearest" })}
               className={`tnum flex flex-col items-center justify-center gap-0.5 rounded-lg transition-transform active:scale-95 disabled:cursor-not-allowed ${cls}`}
               style={{ gridRow: cell.row, gridColumn: cell.col, touchAction: "manipulation" }}
               /* title = desktop tooltip; the same text is the aria-label for readers */

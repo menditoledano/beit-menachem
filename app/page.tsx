@@ -31,6 +31,17 @@ const STEP_TITLES = ["זיהוי", "פרטים ועליות", "תקנון ותש
 
 export default function WizardPage() {
   const [step, setStep] = useState<Step>(0);
+  // The sticky bar under the map covers its last rows (and grows when a seat
+  // is picked). Its measured height becomes the map's bottom inset.
+  const barRef = useRef<HTMLDivElement | null>(null);
+  const [barHeight, setBarHeight] = useState(0);
+  useEffect(() => {
+    const el = barRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setBarHeight(el.getBoundingClientRect().height));
+    ro.observe(el); // fires once on observe, so the first height arrives without a sync set
+    return () => ro.disconnect();
+  }, [step]);
 
   // Identity
   const [phone, setPhone] = useState("");
@@ -812,6 +823,7 @@ export default function WizardPage() {
                 myReservedSeats={moveMode ? ownedSeats : reservedSeats}
                 focusSeat={moveMode ? (moveFrom ?? ownedSeats[0]) : (reservedSeats[0] ?? selected[0])}
                 fitOnMount
+                bottomInset={barHeight}
                 onToggleSeat={moveMode ? moveToggle : toggleSeat}
               />
             ) : (
@@ -819,7 +831,7 @@ export default function WizardPage() {
             )}
           </div>
 
-          <div className="safe-bottom sticky bottom-0 z-10 border-t border-black/5 bg-white/80 px-4 pt-2 backdrop-blur-xl">
+          <div ref={barRef} className="safe-bottom sticky bottom-0 z-10 border-t border-black/5 bg-white/80 px-4 pt-2 backdrop-blur-xl">
             <div className="mx-auto flex max-w-lg flex-col gap-2">
               {moveMode ? (
                 <>
