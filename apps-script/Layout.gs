@@ -166,27 +166,20 @@ function extendLayout(payload) {
 
   var seatSh = sheet_(TAB.SEATS);
   var lastRow = seatSh.getLastRow();
-  var existing = lastRow > 1 ? seatSh.getRange(2, 1, lastRow - 1, 6).getValues() : [];
+  var existing = lastRow > 1 ? seatSh.getRange(2, 1, lastRow - 1, SEAT_HEADERS.length).getValues() : [];
   var byNo = {};
   seats.forEach(function (s) { byNo[Number(s.seatNo)] = s; });
 
-  // payload.keep lets a previous extension be reshaped before anyone sat in
-  // it: seats 1..keep are proven identical below, and every seat past keep is
-  // dropped — only if nobody holds it. A single holder anywhere in the tail
-  // refuses the whole call, so numbering never shifts under a claim.
+  // payload.keep reshapes the tail of the map: seats 1..keep must come back
+  // byte-identical, everything past keep is dropped, and whatever the payload
+  // adds above keep is appended. Omitted, it means "keep everything" — the
+  // plain append. Every check runs before the first write, so a payload that
+  // fails validation leaves the sheet untouched.
   var keep = payload.keep === undefined ? existing.length : Number(payload.keep);
-  if (keep < existing.length) {
-    var tail = seatSh.getRange(keep + 2, 1, existing.length - keep, SEAT_HEADERS.length).getValues();
-    tail.forEach(function (r) {
-      var held = r[COLS.STATUS - 1] !== STATUS.FREE || String(r[COLS.NAME - 1] || '') ||
-        String(r[COLS.PHONE - 1] || '') || String(r[COLS.CHAZAKA_NAME - 1] || '');
-      if (held) throw new Error('מקום ' + r[0] + ' לא פנוי — אי אפשר לעצב מחדש את ההרחבה');
-    });
-    seatSh.deleteRows(keep + 2, existing.length - keep);
-    existing = existing.slice(0, keep);
-  }
+  if (!(keep >= 0 && keep <= existing.length)) throw new Error('keep לא תקין: ' + payload.keep);
 
-  existing.forEach(function (r) {
+  for (var i = 0; i < keep; i++) {
+    var r = existing[i];
     var n = Number(r[0]);
     var s = byNo[n];
     if (!s) throw new Error('מקום ' + n + ' נעלם מהפריסה החדשה');
@@ -194,35 +187,48 @@ function extendLayout(payload) {
       Boolean(s.facingArk) === (r[3] === true || r[3] === 'TRUE') &&
       Number(s.pairSeatNo) === Number(r[4]) && String(s.zone) === String(r[5]);
     if (!same) throw new Error('מקום ' + n + ' השתנה — הרחבה חייבת להשאיר את הקיים כמות שהוא');
-  });
-  var N = existing.length;
-  var added = seats.filter(function (s) { return Number(s.seatNo) > N; })
+  }
+
+  var added = seats.filter(function (x) { return Number(x.seatNo) > keep; })
     .sort(function (a, b) { return a.seatNo - b.seatNo; });
-  if (!added.length) throw new Error('אין מקומות חדשים להוסיף');
-  added.forEach(function (s, i) {
-    if (Number(s.seatNo) !== N + 1 + i) throw new Error('מספור לא רציף אחרי ' + N);
+  var dropCount = existing.length - keep;
+  if (!added.length && !dropCount) throw new Error('אין מה לשנות בפריסה');
+  if (seats.length !== keep + added.length) throw new Error('מספור לא רציף בפריסה החדשה');
+  added.forEach(function (x, j) {
+    if (Number(x.seatNo) !== keep + 1 + j) throw new Error('מספור לא רציף אחרי ' + keep);
   });
-  added.forEach(function (s) {
-    if (s.facingArk) {
-      var pair = byNo[Number(s.pairSeatNo)];
-      if (!pair || Number(pair.pairSeatNo) !== Number(s.seatNo)) {
-        throw new Error('מקום ' + s.seatNo + ' פונה לארון בלי בן זוג תקין');
+  added.forEach(function (x) {
+    if (x.facingArk) {
+      var pair = byNo[Number(x.pairSeatNo)];
+      if (!pair || Number(pair.pairSeatNo) !== Number(x.seatNo)) {
+        throw new Error('מקום ' + x.seatNo + ' פונה לארון בלי בן זוג תקין');
       }
     }
   });
+  // Dropping a row that someone holds would detach their claim, so one held
+  // seat anywhere in the tail refuses the whole call.
+  for (var k = keep; k < existing.length; k++) {
+    var t = existing[k];
+    var held = t[COLS.STATUS - 1] !== STATUS.FREE || String(t[COLS.NAME - 1] || '') ||
+      String(t[COLS.PHONE - 1] || '') || String(t[COLS.CHAZAKA_NAME - 1] || '');
+    if (held) throw new Error('מקום ' + t[0] + ' לא פנוי — אי אפשר לעצב מחדש את הפריסה');
+  }
 
   saveLayout({ layout: layout });
 
-  var rows = added.map(function (s) {
-    return [
-      s.seatNo, s.tableId, s.side, s.facingArk, s.pairSeatNo, s.zone,
-      STATUS.FREE, '', '', '', '', false, '', '', '', '',
-    ];
-  });
-  seatSh.getRange(N + 2, 1, rows.length, SEAT_HEADERS.length).setValues(rows);
-  // Phones stay text in the appended rows too.
-  seatSh.getRange(N + 2, COLS.PHONE, rows.length, 1).setNumberFormat('@');
-  seatSh.getRange(N + 2, COLS.CHAZAKA_PHONE, rows.length, 1).setNumberFormat('@');
+  if (dropCount) seatSh.deleteRows(keep + 2, dropCount);
+  if (added.length) {
+    var rows = added.map(function (x) {
+      return [
+        x.seatNo, x.tableId, x.side, x.facingArk, x.pairSeatNo, x.zone,
+        STATUS.FREE, '', '', '', '', false, '', '', '', '',
+      ];
+    });
+    seatSh.getRange(keep + 2, 1, rows.length, SEAT_HEADERS.length).setValues(rows);
+    // Phones stay text in the appended rows too.
+    seatSh.getRange(keep + 2, COLS.PHONE, rows.length, 1).setNumberFormat('@');
+    seatSh.getRange(keep + 2, COLS.CHAZAKA_PHONE, rows.length, 1).setNumberFormat('@');
+  }
 
   var version = Utilities.getUuid().slice(0, 8);
   sheet_(TAB.LAYOUT_COMPILED).getRange(1, 1).setValue(JSON.stringify({
@@ -234,9 +240,9 @@ function extendLayout(payload) {
   CacheService.getScriptCache().remove('seatmap');
   SpreadsheetApp.flush();
 
-  logAction_('EXTEND_LAYOUT', (N + 1) + '-' + (N + added.length), '', '', '', 'ok',
-    'version=' + version + (payload.keep !== undefined ? ' keep=' + keep : ''), '');
-  return { added: added.length, from: N + 1, to: N + added.length, version: version };
+  logAction_('EXTEND_LAYOUT', (keep + 1) + '-' + (keep + added.length), '', '', '', 'ok',
+    'version=' + version + ' keep=' + keep + ' added=' + added.length + ' dropped=' + dropCount, '');
+  return { total: seats.length, added: added.length, dropped: dropCount, keep: keep, version: version };
 }
 
 function getCompiledLayout() {
